@@ -7138,11 +7138,51 @@ function renderRecordsGlobal(el){
                    && !_campoExcluido(a.campo) && a.delta < 0)
       .forEach(a => { (batidoMap[jugador] = batidoMap[jugador] || []).push({ delta:a.delta, fecha:a.fecha, campo:a.campo||'—', ctx:CTX_LABEL[a.src]||a.src }); });
   });
+  // ── Los Inmaculados ──────────────────────────────────────────────────
+  // Tarjeta completa (18 hoyos) sin ningún hoyo por encima del par: todo par
+  // o mejor. Mismos filtros que Han batido el campo.
+  const inmaculadoMap = {};
+  PLAYERS.forEach(jugador => {
+    _recopilarActuacionesGlobal(jugador)
+      .filter(a => !a.abandono && a.fecha instanceof Date && a.fecha >= FECHA_INICIO_GLOBAL_CALC
+                   && !_campoExcluido(a.campo) && Array.isArray(a.hoyos)
+                   && a.hoyos.length === N_HOYOS && a.hoyos.every(v => v != null && v <= PAR_HOYO))
+      .forEach(a => { (inmaculadoMap[jugador] = inmaculadoMap[jugador] || []).push({ delta:a.delta, fecha:a.fecha, campo:a.campo||'—', ctx:CTX_LABEL[a.src]||a.src }); });
+  });
+  const inmaculadoData = Object.entries(inmaculadoMap)
+    .map(([jugador, rondas]) => ({ jugador, rondas }))
+    .sort((a,b) => b.rondas.length - a.rondas.length || Math.min(...a.rondas.map(r=>r.delta)) - Math.min(...b.rondas.map(r=>r.delta)));
+
   const batidoData = Object.entries(batidoMap)
     .map(([jugador, rondas]) => ({ jugador, rondas }))
     .sort((a,b) => b.rondas.length - a.rondas.length || Math.min(...a.rondas.map(r=>r.delta)) - Math.min(...b.rondas.map(r=>r.delta)));
 
   let h = '<div class="ent-wrap" style="max-width:630px">';
+
+  // Sección 0 — Los Inmaculados (encima de Han batido el campo)
+  h += '<div style="margin-bottom:18px">';
+  h += '<div style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:12px;margin-bottom:8px"><span style="font-size:15px;line-height:1">🙏</span> Los Inmaculados <span style="font-weight:400;color:#aaa;font-size:10px;margin-left:4px">· tarjeta entera a par o mejor · todos los campos salvo '+CAMPOS_EXCLUIDOS_RECORDS.join(', ')+' · pincha un resultado</span></div>';
+  if(!inmaculadoData.length){
+    h += '<div style="font-size:11px;color:#aaa;padding:8px">Nadie ha firmado aún una tarjeta inmaculada.</div>';
+  } else {
+    inmaculadoData.forEach((p,i) => {
+      const chips = [...p.rondas].sort((a,b)=>a.delta-b.delta).map(r=>{
+        const c=scoreColor(r.delta);
+        const info = fFecha(r.fecha)+' · '+r.campo+' · '+r.ctx;
+        return '<span class="bchip" data-info="'+info+'" onclick="_batidoToggle(this)" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:24px;border-radius:5px;background:'+c.bg+';color:'+c.col+';font-size:11px;font-weight:500;border:1px solid '+c.col+'33;cursor:pointer">'+r.delta+'</span>';
+      }).join(' ');
+      h += '<div class="bwrap" style="margin-bottom:4px">';
+      h += '<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:'+(i===0?'#f0fdf4':'#fff')+';border-radius:7px;border:1px solid #eee">'
+        +'<div style="width:26px;height:26px;border-radius:5px;background:'+(COLORS[p.jugador]||'#eee')+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#333;flex-shrink:0">'+p.jugador.slice(0,3)+'</div>'
+        +'<div style="font-weight:500;font-size:12px;min-width:80px">'+p.jugador+'</div>'
+        +'<div style="font-weight:700;font-size:13px;color:#0f766e;min-width:20px">'+p.rondas.length+'</div>'
+        +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+chips+'</div>'
+        +'</div>';
+      h += '<div class="bdet" style="display:none;font-size:10px;color:#555;margin-top:3px;padding:5px 10px;background:#f9fafb;border:1px solid #eee;border-radius:6px"></div>';
+      h += '</div>';
+    });
+  }
+  h += '</div>'; // cierra sección Los Inmaculados
 
   // Sección 1 — Han batido el campo (arriba)
   h += '<div style="margin-bottom:18px">';
@@ -7415,31 +7455,6 @@ function renderRecordsGlobal(el){
     });
   }
   h += '</div>'; // cierra sección Partidos seguidos sin doble bogey
-
-
-  // ── Más pares o mejor en un partido (3️⃣⛳) ──────────────────────────
-  // Par o mejor = hoyo <=3 (par, birdie, hoyo en uno). Mejor ronda de cada jugador + fecha/campo/contexto.
-  const masParesData = PLAYERS.map(jugador => {
-    const acts = _recopilarActuacionesGlobal(jugador)
-      .filter(a => !a.abandono && a.fecha instanceof Date && a.fecha >= FECHA_INICIO_GLOBAL_CALC && Array.isArray(a.hoyos) && !_campoExcluido(a.campo))
-      .map(a => ({ ...a, pares: a.hoyos.filter(v => v<=3).length }));
-    if(!acts.length) return { jugador, best:0, fecha:null, campo:null, ctx:null };
-    let mejor = acts[0];
-    acts.forEach(a => { if(a.pares > mejor.pares || (a.pares===mejor.pares && a.fecha>mejor.fecha)) mejor = a; });
-    return { jugador, best:mejor.pares, fecha:mejor.fecha, campo:mejor.campo||'—', ctx:CTX_LABEL[mejor.src]||mejor.src };
-  }).sort((a,b) => b.best - a.best || a.jugador.localeCompare(b.jugador));
-  h += '<div style="margin-bottom:18px">';
-  h += '<div style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:12px;margin-bottom:8px"><span style="font-size:14px;line-height:1">3️⃣⛳</span> Más pares o mejor en un partido <span style="font-weight:400;color:#aaa;font-size:10px;margin-left:4px">· todos los contextos</span></div>';
-  masParesData.forEach((p,i) => {
-    const info = p.fecha ? fFecha(p.fecha)+' · '+p.campo+' · '+p.ctx : '—';
-    h += '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:'+(i===0?'#ecfeff':'#fff')+';border-radius:7px;margin-bottom:4px;border:1px solid #eee">'
-      +'<div style="width:26px;height:26px;border-radius:5px;background:'+(COLORS[p.jugador]||'#eee')+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#333;flex-shrink:0">'+p.jugador.slice(0,3)+'</div>'
-      +'<div style="flex:1;font-weight:500;font-size:12px">'+p.jugador+'</div>'
-      +'<div style="font-size:10px;color:#aaa;margin-right:4px">'+info+'</div>'
-      +'<div style="font-weight:700;font-size:16px;color:#0891b2;min-width:28px;text-align:right">'+p.best+'</div>'
-      +'</div>';
-  });
-  h += '</div>'; // cierra sección Más pares o mejor en un partido
 
 
   // ── Hole in one (todos los contextos) ────────────────────────────────
