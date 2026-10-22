@@ -106,6 +106,18 @@ input,select{font-size:11px;padding:3px 6px;border:1px solid #d1d5db;border-radi
 }
 #tab-entrenamiento .temporada-block[open] .temporada-chevron { transform: rotate(180deg); }
 #tab-entrenamiento .temporada-body { padding: 0 2px; }
+#tab-entrenamiento .ent-subtabs { display: flex; gap: 8px; margin: 0 0 16px; }
+#tab-entrenamiento .ent-subtab {
+  font: 600 11px 'DM Sans', sans-serif; letter-spacing: 2px; text-transform: uppercase;
+  padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--ent-border-strong); background: var(--ent-paper); color: var(--ent-ink-muted);
+}
+#tab-entrenamiento .ent-subtab span { opacity: .6; margin-left: 4px; }
+#tab-entrenamiento .ent-subtab.activa { background: var(--ent-accent); border-color: var(--ent-accent); color: #fff; }
+#tab-entrenamiento .ent-subtitulo {
+  font-size: 11px; letter-spacing: 3px; text-transform: uppercase; font-weight: 600;
+  color: var(--ent-ink-muted); margin: 0 0 12px 4px;
+}
 
 #tab-entrenamiento .entreno-block, #tab-tour .entreno-block {
   background: var(--ent-paper);
@@ -6210,8 +6222,28 @@ function renderPrimeGlobal(el){
 // Reutiliza los helpers globales (renderScorecardCells, renderScorecardTotal,
 // renderScorecardStats) para mantener IDÉNTICO el aspecto visual de hoyos, total
 // y stats comunes. Añade columnas de contexto, campo y ajustes.
+// ── Jornada general ─────────────────────────────────────────────────────
+// Número de cada día que el club ha quedado a jugar, sea cual sea el
+// contexto (Entrenamiento, Liga, Tour, Copa, Interclubs…): 1, 2, 3…
+// cronológico. Cada contexto lleva aparte su propia jornada. Sale de las
+// actuaciones (nada a mano), así que una tarjeta atrasada renumera sola.
+function _diaKey(f){
+  return f.getFullYear() + '-' + String(f.getMonth()+1).padStart(2,'0') + '-' + String(f.getDate()).padStart(2,'0');
+}
+function jornadasGenerales(){
+  const dias = new Set();
+  (_recopilarActuacionesGlobal() || []).forEach(a => {
+    if(a.fecha instanceof Date && !isNaN(+a.fecha)) dias.add(_diaKey(a.fecha));
+  });
+  const orden = Array.from(dias).sort();
+  const num = {};
+  orden.forEach((k, i) => { num[k] = i + 1; });
+  return { num, total: orden.length };
+}
+
 function renderTablaGlobal(el){
   const FECHA_INICIO_GLOBAL_CALC = new Date(2026, 0, 1);
+  const _jg = jornadasGenerales();
 
   // Helper local: ajuste de campo (delega en ajusteRecorrido)
   function _ajusteCampo(nombreCampo, recorrido){
@@ -6245,7 +6277,7 @@ function renderTablaGlobal(el){
   let fOrden   = 'fecha-desc'; // ← más reciente a más antiguo por defecto (Capi)
 
   // Anchos coherentes con el resto de tablas
-  const W = { ctx:34, f:78, p:80, campo:90, h:22, tot:42, stat:28, ajP:30, ef:44 };
+  const W = { jg:30, ctx:34, f:78, p:80, campo:90, h:22, tot:42, stat:28, ajP:30, ef:44 };
 
   function pintarFilas(){
     let d = todasActs.slice();
@@ -6269,7 +6301,7 @@ function renderTablaGlobal(el){
     if(fOrden === 'bir-desc')   d.sort((a,b) => (b.bir||0) - (a.bir||0));
 
     const cnt = document.getElementById('tg-count');
-    if(cnt) cnt.textContent = d.length + ' registros';
+    if(cnt) cnt.textContent = _jg.total + (_jg.total === 1 ? ' jornada' : ' jornadas') + ' · ' + d.length + ' registros';
 
     const tbody = document.getElementById('tg-body');
     if(!tbody) return;
@@ -6288,12 +6320,13 @@ function renderTablaGlobal(el){
       const cnts = a.hoyos ? countScoresFromArr(a.hoyos) : { bir:a.bir, par:a.par, bog:a.bog, dbl:a.dbl };
 
       return `<tr style="background:${bg};${fBorder};${top10Mark}">
+        <td style="text-align:center;padding:3px 2px;font-size:11px;font-weight:700;color:#374151;border:1px solid #e5e7eb">${_jg.num[_diaKey(a.fecha)] || '·'}</td>
         <td style="text-align:center;padding:3px 2px;font-size:11px;border:1px solid #e5e7eb">
           <span style="display:inline-block;background:${b.bg};color:${b.col};font-weight:700;font-size:10px;padding:1px 5px;border-radius:4px">${b.lbl}</span>
         </td>
         <td style="color:#555;padding:3px 4px;font-size:11px;border:1px solid #e5e7eb">${fStr}</td>
-        <td style="background:${COLORS[a.jugador]||'#eee'};font-weight:500;color:#333;padding:3px 5px;font-size:11px;border:1px solid #e5e7eb;overflow:hidden;text-overflow:ellipsis">${a.jugador}</td>
         <td style="color:#666;padding:3px 5px;font-size:10px;border:1px solid #e5e7eb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.campo||'-'}</td>
+        <td style="background:${COLORS[a.jugador]||'#eee'};font-weight:500;color:#333;padding:3px 5px;font-size:11px;border:1px solid #e5e7eb;overflow:hidden;text-overflow:ellipsis">${a.jugador}</td>
         ${renderScorecardCells(hoyos)}
         ${renderScorecardTotal(a.delta)}
         ${renderScorecardStats(cnts)}
@@ -6331,7 +6364,7 @@ function renderTablaGlobal(el){
 
   h += '<div style="overflow-x:auto"><table style="table-layout:fixed;border-collapse:collapse;font-size:11px">';
   h += '<colgroup>';
-  h += `<col style="width:${W.ctx}px"><col style="width:${W.f}px"><col style="width:${W.p}px"><col style="width:${W.campo}px">`;
+  h += `<col style="width:${W.jg}px"><col style="width:${W.ctx}px"><col style="width:${W.f}px"><col style="width:${W.campo}px"><col style="width:${W.p}px">`;
   h += Array.from({length:9},()=>`<col style="width:${W.h}px">`).join('');
   h += Array.from({length:9},()=>`<col style="width:${W.h}px">`).join('');
   h += `<col style="width:${W.tot}px">`;
@@ -6339,10 +6372,11 @@ function renderTablaGlobal(el){
   h += `<col style="width:${W.ajP}px"><col style="width:${W.ajP}px"><col style="width:${W.ef}px">`;
   h += '</colgroup>';
   h += '<thead><tr>';
+  h += '<th style="padding:3px 2px;background:#f9fafb;border:1px solid #e5e7eb" title="Jornada general: nº de día que hemos quedado a jugar, sea cual sea el contexto">#</th>';
   h += '<th style="padding:3px 2px;background:#f9fafb;border:1px solid #e5e7eb">Ctx</th>';
   h += '<th style="padding:3px 4px;background:#f9fafb;border:1px solid #e5e7eb;text-align:left">Fecha</th>';
-  h += '<th style="padding:3px 4px;background:#f9fafb;border:1px solid #e5e7eb;text-align:left">Jugador</th>';
   h += '<th style="padding:3px 4px;background:#f9fafb;border:1px solid #e5e7eb;text-align:left">Campo</th>';
+  h += '<th style="padding:3px 4px;background:#f9fafb;border:1px solid #e5e7eb;text-align:left">Jugador</th>';
   h += renderScorecardHeadersHoyos();
   h += renderScorecardHeadersTotStats();
   h += '<th style="padding:3px 1px;background:#f9fafb;font-size:10px;border:1px solid #e5e7eb" title="Ajuste de campo">🏞️</th>';
@@ -8733,9 +8767,13 @@ function _renderListaTorneos(el, DATOS, cfg){
   // Lista de entrenamientos. Se empuja al global ENTRENAMIENTOS_DATA para que
   // calcHandicapGlobal (fuera del IIFE) pueda acceder a estas jornadas también.
   ENTRENAMIENTOS_DATA.push(
-    // Pretemporada 2026: un bloque por campo; cada sesión es una jornada.
+    // `tipo`: 'trial' = entreno para elegir titulares de una jornada de
+    // Interclubs (lleva jornadaInterclubs); 'libre' = entreno en cualquier
+    // campo, sin selección. Sin `tipo` cuenta como trial.
+    // Pretemporada 2026: entrenos libres, un bloque por campo; cada sesión es una jornada.
     {
       id: 'ent_2026_can_mascaro',
+      tipo: 'libre',
       anio: 2026,
       campo: 'Can Mascaró',
       jornadaInterclubs: null,
@@ -8757,6 +8795,7 @@ function _renderListaTorneos(el, DATOS, cfg){
     // al saber campo y fecha se rellenan, y el hoyo a hoyo va en `hm`.
     {
       id: 'ent_2027_j1',
+      tipo: 'trial',
       anio: 2027,
       campo: '',
       jornadaInterclubs: 1,
@@ -8769,6 +8808,7 @@ function _renderListaTorneos(el, DATOS, cfg){
     },
     {
       id: 'ent_2027_j2',
+      tipo: 'trial',
       anio: 2027,
       campo: '',
       jornadaInterclubs: 2,
@@ -8781,6 +8821,7 @@ function _renderListaTorneos(el, DATOS, cfg){
     },
     {
       id: 'ent_2027_j3',
+      tipo: 'trial',
       anio: 2027,
       campo: '',
       jornadaInterclubs: 3,
@@ -8793,6 +8834,7 @@ function _renderListaTorneos(el, DATOS, cfg){
     },
     {
       id: 'ent_2027_j4',
+      tipo: 'trial',
       anio: 2027,
       campo: '',
       jornadaInterclubs: 4,
@@ -8805,6 +8847,7 @@ function _renderListaTorneos(el, DATOS, cfg){
     },
     {
       id: 'ent_2027_j5',
+      tipo: 'trial',
       anio: 2027,
       campo: '',
       jornadaInterclubs: 5,
@@ -8817,6 +8860,7 @@ function _renderListaTorneos(el, DATOS, cfg){
     },
     {
       id: 'ent_2027_j6',
+      tipo: 'trial',
       anio: 2027,
       campo: '',
       jornadaInterclubs: 6,
@@ -8829,6 +8873,7 @@ function _renderListaTorneos(el, DATOS, cfg){
     },
     {
       id: 'ent_2027_j7',
+      tipo: 'trial',
       anio: 2027,
       campo: '',
       jornadaInterclubs: 7,
@@ -8841,6 +8886,7 @@ function _renderListaTorneos(el, DATOS, cfg){
     },
     {
       id: 'ent_2027_j8',
+      tipo: 'trial',
       anio: 2027,
       campo: '',
       jornadaInterclubs: 8,
@@ -9992,18 +10038,18 @@ function _renderListaTorneos(el, DATOS, cfg){
     }).join('');
   }
 
+  // Tipo de entreno: 'libre' (sin selección) o 'trial' (por defecto).
+  const esLibre = (e) => e && e.tipo === 'libre';
+  const ENT_TIPOS = [
+    { id:'trial', label:'Trials' },
+    { id:'libre', label:'Libres' },
+  ];
+  const eyebrowEntreno = (e) => esLibre(e)
+    ? 'Entrenamiento libre'
+    : (e.jornadaInterclubs ? `Trial · ${e.jornadaInterclubs}ª Jornada Interclubs` : 'Trial');
+
   function renderEntrenoBlock(entreno, expanded){
-    return `
-      <details class="entreno-block" data-entreno-id="${entreno.id}"${expanded ? ' open' : ''}>
-        <summary>
-          <div class="entreno-meta">
-            <div class="eyebrow">Entrenamiento · ${entreno.jornadaInterclubs}ª Jornada Interclubs</div>
-            <div class="titulo">${entreno.campo} <span class="entreno-score-equipo" data-role="score-equipo"></span></div>
-          </div>
-          <div class="entreno-fecha">${entreno.fecha}</div>
-          <div class="entreno-chevron">▾</div>
-        </summary>
-        <div class="entreno-body">
+    const seleccion = esLibre(entreno) ? '' : `
           <div class="ent-section-title">Indis</div>
           <div class="players-grid grid-2" data-role="indis"></div>
 
@@ -10012,12 +10058,30 @@ function _renderListaTorneos(el, DATOS, cfg){
 
           <div class="ent-section-title">Banquillo</div>
           <div class="players-grid" data-role="banquillo"></div>
-
+`;
+    return `
+      <details class="entreno-block" data-entreno-id="${entreno.id}"${expanded ? ' open' : ''}>
+        <summary>
+          <div class="entreno-meta">
+            <div class="eyebrow">${eyebrowEntreno(entreno)}</div>
+            <div class="titulo">${entreno.campo} <span class="entreno-score-equipo" data-role="score-equipo"></span></div>
+          </div>
+          <div class="entreno-fecha">${entreno.fecha}</div>
+          <div class="entreno-chevron">▾</div>
+        </summary>
+        <div class="entreno-body">${seleccion}
           <div class="ent-section-title">Resultados por jornada</div>
           <div data-role="jornadas"></div>
         </div>
       </details>`;
   }
+
+  window.__entSubtab = function(btn){
+    const cont = btn.closest('.temporada-body');
+    if(!cont) return;
+    cont.querySelectorAll('.ent-subtab').forEach(b => b.classList.toggle('activa', b === btn));
+    cont.querySelectorAll('.ent-subpanel').forEach(p => { p.hidden = p.dataset.sub !== btn.dataset.sub; });
+  };
 
   window.renderEntrenamiento = function(el){
     if(ENTRENAMIENTOS.length === 0){
@@ -10052,17 +10116,29 @@ function _renderListaTorneos(el, DATOS, cfg){
       arr.sort((a,b) => parseFecha(b.fecha) - parseFecha(a.fecha))
     );
 
-    // Años de más reciente a más antiguo; el más reciente abierto por defecto
+    // Años de más reciente a más antiguo; todos cerrados al entrar
     const anios = Object.keys(porTemporada).map(Number).sort((a,b) => b - a);
 
     const html = anios.map((anio, idxAnio) => {
       const lista = porTemporada[anio];
-      const bloques = lista.map((e, i) =>
-        renderEntrenoBlock(e, idxAnio === 0 && i === 0)
-      ).join('');
+      // Trials y Libres: subpestaña solo si hay de los dos tipos.
+      const grupos = ENT_TIPOS
+        .map(t => ({ ...t, items: lista.filter(e => (esLibre(e) ? 'libre' : 'trial') === t.id) }))
+        .filter(g => g.items.length);
+      // Todo cerrado al entrar (temporadas y entrenos).
+      const pintar = (items) => items.map(e => renderEntrenoBlock(e, false)).join('');
+      let bloques;
+      if(grupos.length > 1){
+        bloques = `<div class="ent-subtabs">`
+          + grupos.map((g, i) => `<button type="button" class="ent-subtab${i === 0 ? ' activa' : ''}" data-sub="${g.id}" onclick="window.__entSubtab(this)">${g.label} <span>${g.items.length}</span></button>`).join('')
+          + `</div>`
+          + grupos.map((g, i) => `<div class="ent-subpanel" data-sub="${g.id}"${i === 0 ? '' : ' hidden'}>${pintar(g.items)}</div>`).join('');
+      } else {
+        bloques = (grupos[0] ? `<div class="ent-subtitulo">${grupos[0].label}</div>` : '') + pintar(lista);
+      }
       const label = lista.length === 1 ? '1 entrenamiento' : `${lista.length} entrenamientos`;
       return `
-        <details class="temporada-block" data-temporada="${anio}"${idxAnio === 0 ? ' open' : ''}>
+        <details class="temporada-block" data-temporada="${anio}">
           <summary>
             <span class="temporada-titulo">🏆 Temporada ${anio}</span>
             <span class="temporada-count">${label}</span>
@@ -10084,7 +10160,7 @@ function _renderListaTorneos(el, DATOS, cfg){
     ENTRENAMIENTOS.forEach(entreno => {
       const blockEl = el.querySelector(`[data-entreno-id="${entreno.id}"]`);
       if(blockEl){
-        renderPlayers(blockEl, entreno);
+        if(!esLibre(entreno)) renderPlayers(blockEl, entreno);
         renderJornadas(blockEl, entreno);
       }
     });
