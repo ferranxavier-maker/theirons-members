@@ -8733,6 +8733,26 @@ function _renderListaTorneos(el, DATOS, cfg){
   // Lista de entrenamientos. Se empuja al global ENTRENAMIENTOS_DATA para que
   // calcHandicapGlobal (fuera del IIFE) pueda acceder a estas jornadas también.
   ENTRENAMIENTOS_DATA.push(
+    // Pretemporada 2026: un bloque por campo; cada sesión es una jornada.
+    {
+      id: 'ent_2026_can_mascaro',
+      anio: 2026,
+      campo: 'Can Mascaró',
+      jornadaInterclubs: null,
+      fecha: '22/10/2026',
+      salidas: [],
+      bajas: [],
+      hcpFallbackMedia: [],
+      jornadas: [
+        {j:1, fecha:'22/10/2026', recorrido:'FCPP'},
+      ],
+      hm: {
+        "1_Cabra": [4,3,4,3,3,3,3,4,4,2,3,3,3,3,2,3,3,4],
+        "1_David": [3,5,5,4,3,3,3,3,2,4,4,3,5,3,2,4,3,2],
+        "1_Sucio": [4,3,3,4,4,2,4,4,4,2,3,3,4,3,4,4,4,4],
+        "1_Capi":  [2,4,4,4,5,3,4,5,3,4,5,3,3,2,5,4,4,3],
+      },
+    },
     // Un entrenamiento por prueba de Interclubs. Se dejan montados y vacíos;
     // al saber campo y fecha se rellenan, y el hoyo a hoyo va en `hm`.
     {
