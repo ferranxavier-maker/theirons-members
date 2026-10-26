@@ -739,6 +739,687 @@ details.collapsible-section > summary:hover { filter: brightness(0.97); }
   .ficha-grid > *{ max-width:100%; }
   .ficha-suelta{ width:100%; }
 }
+
+/* ── Pestaña Ranking (restaurada 26/10/2026) ── */
+#tab-ranking {
+  --ent-bg: #ffffff;
+  --ent-paper: #ffffff;
+  --ent-paper-2: #fafaf9;
+  --ent-border: #e7e5e4;
+  --ent-border-strong: #d6d3d1;
+  --ent-ink: #1c1917;
+  --ent-ink-soft: #44403c;
+  --ent-ink-muted: #78716c;
+  --ent-ink-dim: #a8a29e;
+  --ent-accent: #ea580c;
+  --ent-birdie: #22c55e;
+  --ent-hio:    #9d174d;
+  --ent-bogey:  #22d3ee;
+  --ent-doble:  #1e3a8a;
+  --ent-tot:    #1e3a8a;
+  background: var(--ent-bg);
+  color: var(--ent-ink);
+  font-family: 'DM Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding: 32px 20px 80px;
+}
+#tab-ranking .ent-wrap { max-width:630px; }
+#tab-ranking .temporada-block {
+  margin-bottom: 28px;
+  border-radius: 16px;
+  background: transparent;
+}
+#tab-ranking .temporada-block summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 12px 4px 14px;
+  border-bottom: 2px solid var(--ent-border-strong);
+  user-select: none;
+  margin-bottom: 18px;
+  transition: border-color 0.15s;
+}
+#tab-ranking .temporada-block summary::-webkit-details-marker { display: none; }
+#tab-ranking .temporada-block summary::marker { content: ''; }
+#tab-ranking .temporada-block summary:hover { border-bottom-color: var(--ent-accent); }
+#tab-ranking .temporada-titulo {
+  font-family: 'Fraunces', serif;
+  font-weight: 900;
+  font-size: clamp(20px, 2.4vw, 26px);
+  color: var(--ent-accent);
+  letter-spacing: -0.3px;
+  flex: 0 0 auto;
+}
+#tab-ranking .temporada-count {
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--ent-muted, #8a7a5c);
+  font-weight: 600;
+  flex: 1 1 auto;
+}
+#tab-ranking .temporada-chevron {
+  font-size: 18px;
+  color: var(--ent-accent);
+  transition: transform 0.2s;
+  flex: 0 0 auto;
+}
+#tab-ranking .temporada-block[open] .temporada-chevron { transform: rotate(180deg); }
+#tab-ranking .temporada-body { padding: 0 2px; }
+#tab-ranking .rkg-resumen { margin-bottom: 22px; }
+#tab-ranking .rkg-resumen .entreno-head { padding-left: 14px; padding-right: 14px; }
+#tab-ranking .rkg-resumen .entreno-body { padding-left: 10px; padding-right: 10px; }
+#tab-ranking .rkg-resumen-table-wrap {
+  overflow-x: auto;
+  margin-top: 4px;
+  padding-bottom: 4px;
+}
+#tab-ranking .rkg-resumen-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: 'DM Sans', sans-serif;
+}
+#tab-ranking .rkg-resumen-table th {
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ent-muted, #8a7a5c);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--ent-border-strong, #d4c4a0);
+  text-align: center;
+  white-space: nowrap;
+}
+#tab-ranking .rkg-resumen-table th.rkg-name-h { text-align: left; padding-left: 12px; }
+#tab-ranking .rkg-resumen-table th.rkg-media-h { color: var(--ent-accent, #c2410c); }
+#tab-ranking .rkg-resumen-table td {
+  padding: 7px 8px;
+  text-align: center;
+  border-bottom: 1px solid rgba(212, 196, 160, 0.3);
+  font-variant-numeric: tabular-nums;
+}
+#tab-ranking .rkg-resumen-table tr:last-child td { border-bottom: none; }
+#tab-ranking .rkg-name {
+  text-align: left;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  border-radius: 4px;
+}
+#tab-ranking .rkg-cell { color: #374151; }
+#tab-ranking .rkg-cell-empty { color: #d1d5db; }
+#tab-ranking .rkg-cell-discarded {
+  background: #e5e7eb;
+  color: #9ca3af;
+  text-decoration: line-through;
+  text-decoration-color: #9ca3af;
+}
+#tab-ranking .rkg-empty { color: #d1d5db; }
+/* 3 o más ausencias: fuera de la clasificación → fila en gris y nombre tachado */
+#tab-ranking .rkg-row-sinmedia td,
+#tab-ranking .rkg-row-sinmedia .rkg-cell,
+#tab-ranking .rkg-row-sinmedia .rkg-media { color: #9ca3af; }
+#tab-ranking .rkg-row-sinmedia .rkg-name {
+  background: #e5e7eb !important;
+  color: #9ca3af;
+  text-decoration: line-through;
+  text-decoration-color: #9ca3af;
+}
+#tab-ranking .rkg-media {
+  font-weight: 700;
+  color: var(--ent-accent, #c2410c);
+  font-size: 13px;
+}
+#tab-ranking .entreno-block {
+  background: var(--ent-paper);
+  border: 1px solid var(--ent-border);
+  border-radius: 14px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+#tab-ranking .entreno-block[open] {
+  border-color: var(--ent-border-strong);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+#tab-ranking .entreno-block summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 22px 28px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 20px;
+  user-select: none;
+  transition: background 0.15s;
+}
+#tab-ranking .entreno-block summary::-webkit-details-marker { display: none; }
+#tab-ranking .entreno-block summary::marker { content: ''; }
+#tab-ranking .entreno-block summary:hover { background: var(--ent-paper-2); }
+#tab-ranking .entreno-block[open] summary {
+  border-bottom: 1px solid var(--ent-border);
+}
+#tab-ranking .entreno-meta .eyebrow {
+  font-size: 11px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--ent-accent);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+#tab-ranking .entreno-meta .titulo {
+  font-family: 'Fraunces', serif;
+  font-weight: 900;
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 0.95;
+  letter-spacing: -1.5px;
+  color: var(--ent-ink);
+}
+#tab-ranking .entreno-meta .titulo em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--ent-accent);
+}
+#tab-ranking .entreno-score-equipo {
+  display: inline-flex;
+  align-items: stretch;
+  margin-left: 14px;
+  gap: 6px;
+  font-family: 'Inter', system-ui, sans-serif;
+  vertical-align: middle;
+  font-style: normal;
+}
+#tab-ranking .entreno-score-equipo:empty {
+  display: none;
+}
+#tab-ranking .entreno-score-equipo .ese-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid;
+  min-width: 48px;
+  cursor: help;
+}
+#tab-ranking .entreno-score-equipo .ese-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  opacity: 0.7;
+  line-height: 1;
+}
+#tab-ranking .entreno-score-equipo .ese-val {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+#tab-ranking .entreno-score-equipo .ese-peor {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+#tab-ranking .entreno-score-equipo .ese-avg {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+  min-width: 60px;
+}
+#tab-ranking .entreno-score-equipo .ese-avg .ese-val {
+  font-size: 16px;
+}
+#tab-ranking .entreno-score-equipo .ese-mejor {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+#tab-ranking .entreno-score-equipo .ese-pronostico {
+  background: linear-gradient(135deg, #ede9fe 0%, #fef3c7 100%);
+  border-color: #c4b5fd;
+  color: #5b21b6;
+  min-width: 78px;
+}
+#tab-ranking .entreno-score-equipo .ese-pronostico .ese-val {
+  font-size: 17px;
+}
+#tab-ranking .entreno-fecha {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ent-ink-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-weight: 500;
+}
+#tab-ranking .entreno-chevron {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ent-ink-muted);
+  font-size: 14px;
+  transition: transform 0.3s ease;
+  border-radius: 50%;
+  background: var(--ent-paper-2);
+}
+#tab-ranking .entreno-block[open] .entreno-chevron {
+  transform: rotate(180deg);
+  background: transparent;
+  color: var(--ent-accent);
+}
+#tab-ranking .entreno-body {
+  padding: 24px 12px 32px;
+}
+#tab-ranking .ent-section-title {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--ent-ink);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+#tab-ranking .ent-section-title::before {
+  content: '';
+  width: 24px;
+  height: 2px;
+  background: var(--ent-accent);
+}
+#tab-ranking .players-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 16px;
+}
+#tab-ranking .players-grid.grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  max-width: 460px;
+}
+#tab-ranking .players-grid.grid-2 .pcard {
+  min-height: 70px;
+  padding: 8px 6px 10px;
+  gap: 4px;
+}
+#tab-ranking .players-grid.grid-2 .pcard .delta {
+  font-size: 22px;
+}
+#tab-ranking .players-grid.grid-2 .pcard .name {
+  font-size: 10px;
+}
+#tab-ranking .players-grid.grid-2 .pcard .ent-mini {
+  font-size: 11px;
+}
+#tab-ranking .pcard .delta .delta-reg {
+  font-size: 11px;
+  color: var(--ent-muted, #8a7a5c);
+  font-weight: 500;
+  vertical-align: middle;
+  margin-left: 4px;
+  letter-spacing: 0;
+}
+#tab-ranking .players-grid.grid-2 .pcard .delta .delta-reg {
+  font-size: 11px;
+}
+#tab-ranking .pcard {
+  background: var(--ent-paper);
+  border: 2px solid var(--ent-border-strong);
+  border-radius: 10px;
+  padding: 12px 8px 14px;
+  min-height: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  transition: border-color 0.2s, transform 0.2s;
+  position: relative;
+}
+#tab-ranking .pcard:hover {
+  border-color: var(--ent-accent);
+  transform: translateY(-1px);
+}
+#tab-ranking .pcard.pcard-active {
+  border-color: var(--ent-accent);
+  border-width: 2px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 100;
+  opacity: 1 !important;
+}
+#tab-ranking .pcard-popover {
+  opacity: 1;
+}
+#tab-ranking .pcard {
+  cursor: pointer;
+}
+#tab-ranking .pcard-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  min-width: 300px;
+  background: #fffbf0;
+  border: 1px solid #d6cfa3;
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  font-size: 12px;
+  color: #1a1a1a;
+  text-align: left;
+  line-height: 1.55;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+#tab-ranking .pcard-popover::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 10px;
+  height: 10px;
+  background: #fffbf0;
+  border-left: 1px solid #d6cfa3;
+  border-top: 1px solid #d6cfa3;
+}
+#tab-ranking .pcard-popover .pop-title {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #ece6c8;
+  color: #6b5e1f;
+}
+#tab-ranking .pcard-popover .pop-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 1px 0;
+}
+#tab-ranking .pcard-popover .pop-row .pop-label {
+  color: #555;
+}
+#tab-ranking .pcard-popover .pop-row .pop-value {
+  font-weight: 500;
+  color: #1a1a1a;
+}
+#tab-ranking .pcard-popover .pop-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #999;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+#tab-ranking .pcard-popover .pop-close:hover {
+  background: rgba(0,0,0,0.06);
+  color: #333;
+}
+#tab-ranking .pcard.empty { opacity: 0.5; background: var(--ent-paper-2); }
+#tab-ranking .pcard-attenuated {
+  opacity: 0.62;
+  border-style: dashed;
+}
+#tab-ranking .pcard-sindatos {
+  background: #fafaf5;
+}
+#tab-ranking .pcard-sindatos .delta-sindatos {
+  color: #6b7280;
+  font-style: italic;
+}
+#tab-ranking .pcard {
+  position: relative;
+}
+#tab-ranking .ent-badge {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  font-size: 14px;
+  line-height: 1;
+}
+#tab-ranking .ent-mini {
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--ent-ink-muted);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+#tab-ranking .pcard .name {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--ent-ink);
+  line-height: 1;
+}
+#tab-ranking .pcard .delta {
+  font-family: 'Fraunces', serif;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+}
+#tab-ranking .pcard.empty .delta { color: var(--ent-ink-dim); font-size: 18px; }
+#tab-ranking .delta-neg { color: var(--ent-birdie); }
+#tab-ranking .delta-pos { color: var(--ent-bogey);  }
+#tab-ranking .delta-zero { color: var(--ent-ink); }
+#tab-ranking .delta-empty { color: var(--ent-ink-dim); }
+#tab-ranking .jornada {
+  background: var(--ent-paper);
+  border: 1px solid var(--ent-border);
+  border-radius: 12px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+#tab-ranking .jornada-header {
+  padding: 16px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid var(--ent-border);
+  background: var(--ent-paper-2);
+}
+#tab-ranking .jornada-title {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+#tab-ranking .jornada-title em {
+  color: var(--ent-accent);
+  font-style: italic;
+}
+#tab-ranking .jornada-fecha {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ent-ink-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+#tab-ranking .table-wrap { overflow-x: visible; }
+#tab-ranking table.scorecard {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+}
+#tab-ranking table.scorecard thead th {
+  color: var(--ent-ink-muted);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 10px 2px;
+  border: none;
+  border-bottom: 1px solid var(--ent-border-strong);
+  background: var(--ent-paper-2);
+  text-align: center;
+  min-width: 24px;
+}
+#tab-ranking table.scorecard thead th.col-jug {
+  text-align: left;
+  padding-left: 14px;
+  padding-right: 8px;
+  font-family: 'DM Sans', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  min-width: 70px;
+}
+#tab-ranking table.scorecard thead th.col-tot {
+  background: var(--ent-tot);
+  color: white;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 38px;
+}
+#tab-ranking table.scorecard thead th.col-stat {
+  min-width: 26px;
+  font-size: 12px;
+}
+#tab-ranking table.scorecard tbody td {
+  padding: 6px 2px;
+  text-align: center;
+  border: none;
+  border-bottom: 1px solid var(--ent-border);
+  font-variant-numeric: tabular-nums;
+  color: var(--ent-ink);
+  height: 38px;
+  white-space: normal;
+}
+#tab-ranking table.scorecard tbody tr:last-child td { border-bottom: none; }
+#tab-ranking td.col-jug {
+  text-align: left !important;
+  padding-left: 22px !important;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  font-size: 12px;
+  color: var(--ent-ink);
+  background: var(--ent-paper);
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+#tab-ranking .chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 7px;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+}
+#tab-ranking .chip-birdie {
+  background: var(--ent-birdie);
+  color: white;
+  border-radius: 50%;
+  width: 26px;
+  padding: 0;
+}
+#tab-ranking .chip-hio {
+  background: var(--ent-hio);
+  color: white;
+  border-radius: 50%;
+  width: 26px;
+  padding: 0;
+}
+#tab-ranking .chip-bogey {
+  background: var(--ent-bogey);
+  color: white;
+}
+#tab-ranking .chip-doble {
+  background: var(--ent-doble);
+  color: white;
+}
+#tab-ranking .par-num {
+  color: var(--ent-ink);
+  font-weight: 500;
+}
+#tab-ranking td.col-tot {
+  background: var(--ent-tot) !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  font-size: 15px;
+  border-left: 0;
+}
+#tab-ranking td.col-stat {
+  background: var(--ent-paper-2);
+  font-weight: 600;
+  color: var(--ent-ink-soft);
+}
+#tab-ranking td.col-stat.zero { color: var(--ent-ink-dim); }
+#tab-ranking td.col-stat.bir { color: var(--ent-birdie); }
+#tab-ranking td.col-stat.par { color: var(--ent-ink); }
+#tab-ranking td.col-stat.bog { color: var(--ent-bogey); }
+#tab-ranking td.col-stat.dbl { color: var(--ent-doble); }
+#tab-ranking th.col-stat-bir { color: var(--ent-birdie) !important; }
+#tab-ranking th.col-stat-bog { color: var(--ent-bogey) !important; }
+#tab-ranking th.col-stat-dbl { color: var(--ent-doble) !important; }
+#tab-ranking table.scorecard { font-size: 11px !important; }
+#tab-ranking table.scorecard thead th { padding: 6px 1px !important; min-width: 22px !important; font-size: 9px !important; }
+#tab-ranking table.scorecard thead th.col-jug { padding-left: 25px !important; padding-right: 12px !important; min-width: 60px !important; letter-spacing: 0.8px !important; }
+#tab-ranking table.scorecard thead th.col-tot { min-width: 36px !important; letter-spacing: 0.5px !important; }
+#tab-ranking table.scorecard thead th.col-stat { min-width: 22px !important; font-size: 11px !important; }
+#tab-ranking table.scorecard tbody td { padding: 4px 1px !important; height: 28px !important; }
+#tab-ranking td.col-jug { padding-left: 25px !important; padding-right: 12px !important; font-size: 10px !important; letter-spacing: 0.6px !important; }
+#tab-ranking .chip { min-width: 18px !important; height: 18px !important; padding: 0 3px !important; font-size: 10px !important; border-radius: 4px !important; }
+#tab-ranking .chip-hio { width: 18px !important; }
+#tab-ranking td.col-tot { font-size: 12px !important; }
+#tab-ranking .empty-state {
+  text-align: center;
+  padding: 60px 24px;
+  color: var(--ent-ink-muted);
+  background: var(--ent-paper);
+  border: 1px dashed var(--ent-border-strong);
+  border-radius: 12px;
+}
+#tab-ranking .empty-state .ico { font-size: 32px; margin-bottom: 12px; opacity: 0.5; }
+#tab-ranking .empty-state h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--ent-ink);
+}
+#tab-ranking .empty-state p { font-size: 13px; }
+#tab-ranking .ent-foot {
+  text-align: center;
+  margin-top: 60px;
+  padding-top: 20px;
+  border-top: 1px solid var(--ent-border);
+  color: var(--ent-ink-dim);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+#tab-ranking .ent-foot span { color: var(--ent-accent); }
+
 </style>
 </head>
 <body>
@@ -754,6 +1435,7 @@ details.collapsible-section > summary:hover { filter: brightness(0.97); }
       <div class="tab" data-tab="copa" onclick="showTab('copa',event)">🏆 Copa</div>
       <div class="tab" data-tab="bolaoro" onclick="showTab('bolaoro',event)"><span class="tab-ico-bola"></span> Bola de oro</div>
       <div class="tab" data-tab="interclubs" onclick="showTab('interclubs',event)">🆚 Interclubs</div>
+      <div class="tab" data-tab="ranking" onclick="showTab('ranking',event)">📊 Ranking</div>
       <div class="tab" data-tab="entrenamiento" onclick="showTab('entrenamiento',event)">🎯 Entrenamiento</div>
           <div class="tab" data-tab="tarjeta" onclick="showTab('tarjeta',event)" title="Nueva tarjeta">➕</div>
     </div>
@@ -788,6 +1470,7 @@ details.collapsible-section > summary:hover { filter: brightness(0.97); }
 <div id="tab-statsglobal" class="content" style="display:none"></div>
 <div id="tab-liga" class="content" style="display:none"></div>
 <div id="tab-interclubs" class="content" style="display:none"></div>
+<div id="tab-ranking" class="content" style="display:none"></div>
 <div id="tab-copa" class="content" style="display:none"></div>
 <div id="tab-bolaoro" class="content" style="display:none"></div>
 <div id="tab-matchplay" class="content" style="display:none"></div>
@@ -898,6 +1581,7 @@ const TITULOS_COMPETICIONES = [
   { id:'tour', icon:'🔥', label:'Tour',       src:'sptr' },
   { id:'mp',   icon:'⚔️', label:'Match Play', src:'mp'   },
   { id:'copa', icon:'🏆', label:'Copa',       src:'copa' },
+  { id:'rkg',  icon:'📊', label:'Ranking federación', src:'rkg' },
   // Bola de oro: quien más birdies hace en la temporada, en cualquier contexto.
   { id:'bola', icon:ICONO_BOLA_ORO, label:'Bola de oro', src:null },
 ];
@@ -908,12 +1592,13 @@ const TITULOS_COMPETICIONES = [
 // `anio` = año de la temporada; sirve para ordenar y para casar con
 // COPA_DATA. `temporada` = la etiqueta que se muestra. null = aún sin decidir.
 // La Copa se deja en 'auto' porque su ganador ya vive en COPA_DATA. La Bola de
-// oro también va en 'auto': se calcula al cerrar la temporada (`fin`).
+// oro también va en 'auto': se calcula al cerrar la temporada (`fin`). El
+// Ranking, 'auto': el 1º de la clasificación de su pestaña al cerrar.
 const PALMARES = [
   // `inicio`/`fin` acotan la temporada para repartir las jornadas ganadas. El
   // corte lo marca Capi cada año, no es fijo. `fin` en null = temporada abierta.
   { anio:2027, temporada:'2027', inicio:'01/01/2027', fin:null,
-    race:null, sl:null, tour:null, mp:null, copa:'auto', bola:'auto' },
+    race:null, sl:null, tour:null, mp:null, copa:'auto', rkg:'auto', bola:'auto' },
 ];
 
 // Ganador de la Copa de un año, leído de COPA_DATA.
@@ -927,7 +1612,7 @@ function _ganadorCopa(anio){
 // Contextos que suman, en el orden de las columnas de la pestaña. El Match Play
 // no cuenta. Cuenta todo hoyo de 2 o menos (birdie o mejor); el hole in one
 // (1 golpe) se lleva aparte porque es el desempate.
-const BOLA_CONTEXTOS = ['sl','sptr','copa','ic','ent'];
+const BOLA_CONTEXTOS = ['sl','sptr','copa','ic','rkg','ent'];
 const BOLA_GOLPES_MAX = PAR_HOYO - 1;   // birdie o mejor
 const BOLA_HIO = 1;                      // hole in one
 
@@ -1075,7 +1760,8 @@ function palmaresResuelto(){
       .map(function(c){
         let g = fila[c.id];
         if(g === 'auto') g = (c.id === 'copa') ? _ganadorCopa(fila.anio)
-                           : (c.id === 'bola') ? _ganadorBola(fila) : null;
+                           : (c.id === 'bola') ? _ganadorBola(fila)
+                           : (c.id === 'rkg')  ? _ganadorRanking(fila) : null;
         return { id:c.id, icon:c.icon, label:c.label, ganador:g || null };
       });
     return { anio:fila.anio, temporada:fila.temporada || String(fila.anio), comps:comps };
@@ -1212,6 +1898,7 @@ function renderTab(t){
   else if(t==='miscelania')renderMiscelania(el);
   else if(t==='liga')renderLiga(el);
   else if(t==='interclubs')renderInterclubs(el);
+  else if(t==='ranking')renderRanking(el);
   else if(t==='copa')renderCopa(el);
   else if(t==='bolaoro')renderBolaOro(el);
   else if(t==='matchplay')renderMatchPlay(el);
@@ -2221,6 +2908,7 @@ const CAMPOS = [
 // ──────────────────────────────────────────────────────────────────────
 const CTX_INFO = {
   ic:      { ajuste:0,    cap:null, hcp:false, icon:'🌍',  lbl:'IC',   label:'Interclubs',       bg:'#fef3c7', col:'#92400e' },
+  rkg:     { ajuste:0,    cap:null, hcp:true,  icon:'📊',  lbl:'RKG',  label:'Ranking',          bg:'#f3e8ff', col:'#6b21a8' },
   copa:    { ajuste:0,    cap:null, hcp:true,  icon:'🏆',  lbl:'COPA', label:'Copa',    bg:'#fce7f3', col:'#9d174d' },
   sl:      { ajuste:0.5,  cap:5,    hcp:true,  icon:'🥇',  lbl:'SL',   label:'Liga',       bg:'#e0e7ff', col:'#3730a3' },
   // `historico`: ajustes que estuvieron vigentes ANTES de un cambio. Una vuelta
@@ -4320,7 +5008,7 @@ function renderRadiografia(el, vueltas, campoKey){
 // Si quieres añadir una nueva fuente de actuaciones, modifícala aquí.
 //
 // Cada actuación devuelta:
-//   { fecha:Date, src:'ent'|'ic'|'sptr'|'sl'|'copa',
+//   { fecha:Date, src:'ent'|'ic'|'rkg'|'sptr'|'sl'|'copa',
 //     campo:string, jugador:string, delta:number,
 //     hoyos:number[18]|null, bir:number, par:number, bog:number, dbl:number,
 //     j:number|null, abandono:boolean, abandonoHoyo:number|null }
@@ -4442,6 +5130,28 @@ function _recopilarActuacionesGlobal(jugador){
             j:jr.j, abandono:v.abandono, abandonoHoyo:v.abandonoHoyo,
             recorrido: jr.recorrido || t.recorrido || 'FCPP',
           });
+        });
+      });
+    });
+  }
+
+  // ── Ranking ──
+  if(typeof RANKING_DATA !== 'undefined' && Array.isArray(RANKING_DATA)){
+    RANKING_DATA.forEach(jr => {
+      Object.keys(jr.hm||{}).forEach(apo => {
+        if(jugador && apo !== jugador) return;
+        const arr = jr.hm[apo];
+        const f = _parseF(jr.fecha);
+        if(!f || !arr) return;
+        const v = _vueltaConAbandono(arr, _hoyoAbandono(jr, apo));
+        const tot = sumaHoyos(v.calc, 'rkg');
+        const st = _stats(v.reales);
+        acts.push({
+          fecha:f, src:'rkg', campo:jr.campo, jugador:apo,
+          delta:tot - PAR_CAMPO, hoyos:v.reales,
+          bir:st.bir, par:st.par, bog:st.bog, dbl:st.dbl,
+          j:jr.j || null, abandono:v.abandono, abandonoHoyo:v.abandonoHoyo,
+          recorrido: jr.recorrido || 'FCPP',
         });
       });
     });
@@ -5031,7 +5741,7 @@ function _htmlPestanasInstrucciones(){
 
   const tarjetas = [
     { t: tabTxt('handicapglobal'), d:
-      'El hándicap del club: un único número por jugador que combina las competiciones del club (Liga, Tour, Copa y Entrenamiento; Interclubs no cuenta). Se cogen sus <b>' + VENTANA + ' últimas actuaciones</b>, se quitan la mejor y la peor, y se hace la media de las ' + (VENTANA - 2 * DESCARTES_HCP) + ' restantes con los ajustes explicados arriba. '
+      'El hándicap del club: un único número por jugador que combina las competiciones del club (Liga, Tour, Copa, Ranking y Entrenamiento; Interclubs no cuenta). Se cogen sus <b>' + VENTANA + ' últimas actuaciones</b>, se quitan la mejor y la peor, y se hace la media de las ' + (VENTANA - 2 * DESCARTES_HCP) + ' restantes con los ajustes explicados arriba. '
       + 'Dentro tienes: ' + subTabs.join(' · ') + '.' },
     { t: tabTxt('ironrace'), d:
       'El premio más importante del año, al hándicap. Cada domingo a las 23:59 se reparten <b>' + RACE.reduce((s, p) => s + p, 0) + ' puntos</b> entre los ' + RACE.length + ' primeros del hándicap global: <b>' + RACE.join('-') + '</b>. '
@@ -5055,6 +5765,8 @@ function _htmlPestanasInstrucciones(){
     { t: tabTxt('interclubs'), d:
       'La competición por equipos de la Federació, donde THE IRONS representa al club. Se juega a golpes reales con individuales y parejas; no todos los resultados puntúan (el peor individual y la peor pareja se descartan). '
       + 'Solo juegan los jugadores de equipo. La alineación la propone el sistema según hándicap, rendimiento en ese campo, entrenamientos, asistencia y adaptabilidad.' + ctxTxt('ic') },
+    { t: tabTxt('ranking'), d:
+      'Pruebas individuales del ranking federativo. Es competición pura: golpes reales y la referencia más exigente del hándicap.' + ctxTxt('rkg') },
     { t: tabTxt('entrenamiento'), d:
       'Vueltas de preparación en el campo de cada prueba de Interclubs. Además de contar para el hándicap, las visitas al campo pesan en la alineación: quien no lo ha entrenado no puede ir de individual.' + ctxTxt('ent') },
     { t: tabTxt('tarjeta') + ' Nueva tarjeta', d:
@@ -8477,6 +9189,346 @@ function apodoDesdeNombreIC(name){
 const ENTRENAMIENTOS_DATA = [];
 
 // ═══════════════════════════════════════════════════════════════════════
+// RANKING — pendiente de alimentar por Capi
+// ═══════════════════════════════════════════════════════════════════════
+// Estructura prevista: igual que ENTRENAMIENTOS pero con datos de ranking.
+// Cuando Capi proporcione el primer ranking, se rellenará el array y
+// renderRanking lo mostrará con el mismo formato visual que Entrenamiento.
+// Estructura por jornada: { id, j, nombre, campo, fecha, hm: { Jugador: [18 hoyos] } }
+// Medal play sin cap (mismas reglas que IC y Oficial). Factor de contexto rkg = 0.
+const RANKING_DATA = [
+  // Calendario del Ranking. Las jornadas se dejan montadas y vacías; cuando se
+  // sepan el campo y la fecha se rellenan aquí, y el hoyo a hoyo en `hm`.
+  {
+    id: 'rkg_2027_j1',
+    j: 1,
+    nombre: 'Ranking 2027 · J1',
+    anio: 2027,
+    campo: '',
+    recorrido: '',
+    fecha: '',
+    hm: {},
+  },
+  {
+    id: 'rkg_2027_j2',
+    j: 2,
+    nombre: 'Ranking 2027 · J2',
+    anio: 2027,
+    campo: '',
+    recorrido: '',
+    fecha: '',
+    hm: {},
+  },
+  {
+    id: 'rkg_2027_j3',
+    j: 3,
+    nombre: 'Ranking 2027 · J3',
+    anio: 2027,
+    campo: '',
+    recorrido: '',
+    fecha: '',
+    hm: {},
+  },
+  {
+    id: 'rkg_2027_j4',
+    j: 4,
+    nombre: 'Ranking 2027 · J4',
+    anio: 2027,
+    campo: '',
+    recorrido: '',
+    fecha: '',
+    hm: {},
+  },
+  {
+    id: 'rkg_2027_j5',
+    j: 5,
+    nombre: 'Ranking 2027 · J5',
+    anio: 2027,
+    campo: '',
+    recorrido: '',
+    fecha: '',
+    hm: {},
+  },
+  {
+    id: 'rkg_2027_j6',
+    j: 6,
+    nombre: 'Ranking 2027 · J6',
+    anio: 2027,
+    campo: '',
+    recorrido: '',
+    fecha: '',
+    hm: {},
+  },
+  {
+    id: 'rkg_2027_j7',
+    j: 7,
+    nombre: 'Ranking 2027 · J7',
+    anio: 2027,
+    campo: '',
+    recorrido: '',
+    fecha: '',
+    hm: {},
+  },
+  {
+    id: 'rkg_2027_j8',
+    j: 8,
+    nombre: 'Ranking 2027 · J8',
+    anio: 2027,
+    campo: '',
+    recorrido: '',
+    fecha: '',
+    hm: {},
+  },
+];
+
+// Clasificación del Ranking de una temporada (fuente única: la usan el resumen
+// de la pestaña y el campeón del Palmarés). Media sin los RANKING_DESCARTES
+// descartes: las ausencias y, si sobran plazas, los peores resultados.
+const RANKING_JORNADAS  = 8;   // jornadas del Ranking federativo por temporada
+const RANKING_DESCARTES = 2;   // peores resultados o ausencias que no cuentan
+function clasificacionRanking(jornadas){
+  // Jornadas ordenadas asc por j para columnas J1...J8
+  const jornadasAsc = [...jornadas].sort((a,b) => a.j - b.j);
+  const maxJ = RANKING_JORNADAS;
+
+  // Números de jornada REALMENTE disputadas hasta la fecha (para contar ausencias
+  // solo sobre las disputadas, no sobre las 8 del calendario).
+  const jugadasNums = jornadasAsc.filter(jor => Object.keys(jor.hm || {}).length > 0).map(jor => jor.j);
+
+  // Recopilar jugadores que han jugado al menos una jornada
+  const jugadoresSet = new Set();
+  jornadasAsc.forEach(jor => Object.keys(jor.hm).forEach(p => jugadoresSet.add(p)));
+  const jugadores = [...jugadoresSet];
+
+  // Para cada jugador: array de deltas indexado por número de jornada (1..maxJ).
+  //  · Jornada jugada → delta real.
+  //  · Jornada disputada NO jugada → AUSENCIA: delta 0 (marcada aparte para pintar "X").
+  //  · Jornada aún no disputada → null (celda vacía).
+  const datos = jugadores.map(p => {
+    const deltas = new Array(maxJ + 1).fill(null);   // index 1..8
+    const ausente = new Array(maxJ + 1).fill(false); // true si jornada disputada no jugada
+    jugadasNums.forEach(jNum => {
+      const jor = jornadasAsc.find(x => x.j === jNum);
+      const arr = jor.hm[p];
+      if(arr && arr.length === N_HOYOS){
+        deltas[jNum] = arr.reduce((s,v) => s+v, 0) - PAR_CAMPO;
+      } else {
+        deltas[jNum] = 0;      // ausencia computa 0
+        ausente[jNum] = true;  // se mostrará como "X"
+      }
+    });
+
+    const nAusencias = jugadasNums.filter(j => ausente[j]).length;
+
+    // MODELO DE DESCARTES (siempre 2 descartes en total):
+    //  · Cada ausencia (X) es un descarte fijo y ocupa una de las 2 plazas.
+    //  · Las plazas de descarte que queden se llenan con los PEORES resultados
+    //    jugados (mayor delta).
+    //  · La media promedia SOLO los resultados jugados que NO caen en descarte.
+    //  · Con ≥ 3 ausencias no caben en 2 plazas → descalificado (sin media).
+    const jugadasReales = jugadasNums.filter(j => !ausente[j]); // nums con delta real
+    const plazasDescartePorJugado = Math.max(0, RANKING_DESCARTES - nAusencias);
+    // Ordenar jornadas jugadas por delta desc (peores primero) para elegir descartes
+    const jugadasOrdPeor = [...jugadasReales].sort((a,b) => deltas[b] - deltas[a]);
+    const descartadosJugados = new Set(jugadasOrdPeor.slice(0, plazasDescartePorJugado));
+
+    // Set de jornadas descartadas (para pintar): todas las X + los peores jugados elegidos
+    const descartadasJornadas = new Set();
+    jugadasNums.forEach(j => { if(ausente[j]) descartadasJornadas.add(j); });
+    descartadosJugados.forEach(j => descartadasJornadas.add(j));
+
+    let media = null;
+    if(nAusencias <= RANKING_DESCARTES){
+      // Jornadas jugadas que cuentan = jugadas − descartadas
+      const cuentan = jugadasReales.filter(j => !descartadosJugados.has(j));
+      if(cuentan.length > 0){
+        media = cuentan.reduce((s,j) => s + deltas[j], 0) / cuentan.length;
+      }
+    }
+    return { jugador: p, deltas, ausente, nAusencias, media, descartadasJornadas };
+  });
+
+  // Orden: primero los que TIENEN media (mejor media arriba); debajo, los SIN media
+  // (agrupados al fondo, ordenados entre sí por nº de jornadas jugadas desc y nombre).
+  datos.sort((a,b) => {
+    const am = a.media !== null, bm = b.media !== null;
+    if(am !== bm) return am ? -1 : 1;          // con media antes que sin media
+    if(am && bm) return a.media - b.media;      // ambos con media: mejor primero
+    // ambos sin media: más jornadas jugadas primero, luego alfabético
+    const aj = jugadasNums.length - a.nAusencias;
+    const bj = jugadasNums.length - b.nAusencias;
+    if(aj !== bj) return bj - aj;
+    return a.jugador.localeCompare(b.jugador);
+  });
+  return { datos, maxJ, jugadasNums };
+}
+
+// Año de una jornada del Ranking: `anio` o, si no, el de su fecha.
+function _anioJornadaRanking(jor){
+  if(jor.anio) return Number(jor.anio);
+  const f = (jor.fecha || '').split('/');
+  return f.length === 3 ? +f[2] : null;
+}
+
+// Campeón del Ranking de una temporada del Palmarés: el 1º con media de la
+// clasificación. Solo con la temporada cerrada (`fin`) o las RANKING_JORNADAS
+// jugadas. Empate exacto de media: null y decide Capi.
+function _ganadorRanking(fila){
+  if(typeof RANKING_DATA === 'undefined') return null;
+  const jornadas = RANKING_DATA.filter(jor => _anioJornadaRanking(jor) === fila.anio);
+  const { datos, jugadasNums } = clasificacionRanking(jornadas);
+  if(!fila.fin && jugadasNums.length < RANKING_JORNADAS) return null;
+  const conMedia = datos.filter(d => d.media !== null);
+  if(!conMedia.length) return null;
+  if(conMedia[1] && Math.abs(conMedia[0].media - conMedia[1].media) < 1e-9){
+    console.warn('[Ranking] Empate de media en ' + fila.temporada + ': decide Capi.');
+    return null;
+  }
+  return conMedia[0].jugador;
+}
+
+function renderRanking(el){
+  if(RANKING_DATA.length === 0){
+    el.innerHTML = `
+      <div class="ent-wrap">
+        <div class="empty-state">
+          <div class="ico">📊</div>
+          <h3>Aún no hay ranking</h3>
+          <p>Cuando Capi alimente el primer ranking, aparecerá aquí.</p>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // Parsear fecha "dd/mm/aaaa" → Date (para ordenar y agrupar por año)
+  const parseFecha = (f) => {
+    if(!f) return new Date(0);
+    const [d,mo,y] = f.split('/');
+    return new Date(+y, +mo-1, +d);
+  };
+  // Si la jornada aún no tiene fecha, se agrupa por su campo `anio`.
+  const getYear = (jor) => jor.anio ? Number(jor.anio) : parseFecha(jor.fecha).getFullYear();
+
+  // Agrupar por temporada (año) y ordenar dentro de cada grupo por fecha desc
+  const porTemporada = {};
+  RANKING_DATA.forEach(jor => {
+    const y = getYear(jor);
+    if(!porTemporada[y]) porTemporada[y] = [];
+    porTemporada[y].push(jor);
+  });
+  // De más reciente a más antigua. Sin fecha (jornadas aún por jugar) manda el
+  // número de jornada, también descendente.
+  Object.values(porTemporada).forEach(arr =>
+    arr.sort((a,b) => (parseFecha(b.fecha) - parseFecha(a.fecha)) || ((b.j||0) - (a.j||0)))
+  );
+
+  // Años de más reciente a más antiguo; el más reciente abierto por defecto
+  const anios = Object.keys(porTemporada).map(Number).sort((a,b) => b - a);
+
+  // Construir tarjeta resumen para una temporada: tabla con jugador × jornadas + media
+  // REGLA (solo esta clasificación; no afecta al HCP global):
+  //  · Una jornada no jugada (de las YA DISPUTADAS) cuenta como AUSENCIA → se muestra "X"
+  //    y vale delta 0 (ni penaliza ni mejora; es candidata natural a descarte).
+  //  · La media descarta las 2 peores. Por tanto hasta 2 ausencias son absorbibles.
+  //  · Con ≥ 3 ausencias ya no quedan descartes para tapar el tercer 0 → SIN media:
+  //    el jugador "no juega" esta clasificación, aparece con sus deltas pero sin media,
+  //    y se agrupa al fondo de la tabla.
+  //  · Todos los jugadores que hayan tocado el ranking aparecen (no se oculta a nadie).
+  const buildResumenTemporada = (anio, jornadas) => {
+    const { datos, maxJ } = clasificacionRanking(jornadas);
+
+    // Formato de celda:
+    //  · null (no disputada) → "·"
+    //  · ausencia (X) → se muestra "X"; se pinta como descarte (gris tachado)
+    //  · delta real → "+N" / "-N" / "0"
+    const fmtCell = (d, esAusente) => {
+      if(d === null) return '<span class="rkg-empty">·</span>';
+      if(esAusente) return 'X';
+      return d >= 0 ? `+${d}` : `${d}`;
+    };
+    const fmtMedia = (m) => m === null ? '—' : (m >= 0 ? `+${m.toFixed(1)}` : `${m.toFixed(1)}`);
+
+    // Construir cabecera J1..J8 + Media
+    const headerJornadas = Array.from({length: maxJ}, (_,i) => `<th>J${i+1}</th>`).join('');
+
+    const filas = datos.map(d => {
+      const colorFondo = (typeof COLORS !== 'undefined' && COLORS[d.jugador]) ? COLORS[d.jugador] : '#f3f4f6';
+      const filaCls = d.media === null ? ' class="rkg-row-sinmedia"' : '';
+      const celdas = [];
+      for(let j = 1; j <= maxJ; j++){
+        let cls = 'rkg-cell';
+        if(d.deltas[j] === null){
+          cls = 'rkg-cell rkg-cell-empty';
+        } else if(d.descartadasJornadas.has(j)){
+          // Ausencia o peor jugada descartada: mismo estilo gris tachado
+          cls = 'rkg-cell rkg-cell-discarded';
+        }
+        celdas.push(`<td class="${cls}">${fmtCell(d.deltas[j], d.ausente[j])}</td>`);
+      }
+      return `<tr${filaCls}>
+        <td class="rkg-name" style="background:${colorFondo}">${d.jugador}</td>
+        ${celdas.join('')}
+        <td class="rkg-media">${fmtMedia(d.media)}</td>
+      </tr>`;
+    }).join('');
+
+    return `
+      <div class="entreno-block rkg-resumen" open>
+        <div class="entreno-head">
+          <div class="entreno-eyebrow">Clasificación · Temporada ${anio}</div>
+          <div class="titulo">📊 Resumen Ranking</div>
+        </div>
+        <div class="entreno-body">
+          <div class="rkg-resumen-table-wrap">
+            <table class="rkg-resumen-table">
+              <thead>
+                <tr>
+                  <th class="rkg-name-h">Jugador</th>
+                  ${headerJornadas}
+                  <th class="rkg-media-h">Media</th>
+                </tr>
+              </thead>
+              <tbody>${filas}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+  };
+
+  const html = anios.map((anio, idxAnio) => {
+    const lista = porTemporada[anio];
+    const bloques = lista.map((jor, i) => renderJornadaCard({
+      id: jor.id,
+      eyebrow: `Ranking · J${jor.j}`,
+      titulo: jor.campo,
+      fecha: jor.fecha,
+      bodyHtml: renderScorecardTable(jor.hm),
+      expanded: idxAnio === 0 && i === 0,
+    })).join('');
+    const resumen = buildResumenTemporada(anio, lista);
+    const label = lista.length === 1 ? '1 jornada' : `${lista.length} jornadas`;
+    return `
+      <details class="temporada-block" data-temporada="${anio}"${idxAnio === 0 ? ' open' : ''}>
+        <summary>
+          <span class="temporada-titulo">🏆 Temporada ${anio}</span>
+          <span class="temporada-count">${label}</span>
+          <span class="temporada-chevron">▾</span>
+        </summary>
+        <div class="temporada-body">
+          ${resumen}
+          ${bloques}
+        </div>
+      </details>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="ent-wrap">
+      ${html}
+      <div class="ent-foot">Roc &amp; Roll <span>·</span> Ranking · Millor Jugador de l'Any</div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // TOUR — quedadas internas del equipo (mínimo 3 jugadores)
 // ═══════════════════════════════════════════════════════════════════════
 // Quedada entre nosotros, con src 'sptr'. Multi-campo: el campo lo define
@@ -9119,7 +10171,7 @@ function _renderListaTorneos(el, DATOS, cfg){
   //   · Top 4 sub-INDI → Indis. De los 4 restantes → Parejas.
 
   // Asistencia 6 semanas: nº de partidos jugados en cualquier contexto
-  // (ENT + IC) en los últimos 42 días.
+  // (ENT + IC + Ranking) en los últimos 42 días.
   function calcAsist6Sem(jugador){
     const hoy = new Date();
     const hace6sem = new Date(hoy.getTime() - 42 * 24 * 60 * 60 * 1000);
@@ -9145,6 +10197,14 @@ function _renderListaTorneos(el, DATOS, cfg){
           if(p.ind2) indis.push({n:p.ind2[0]}, {n:p.ind2[2]});
           if(indis.some(x => apodoDesdeNombreIC(x.n) === jugador)) count++;
         });
+      });
+    }
+    // Ranking
+    if(typeof RANKING_DATA !== 'undefined'){
+      RANKING_DATA.forEach(r => {
+        if(!r.fecha || !(r.hm && r.hm[jugador])) return;
+        const [d,mo,y] = r.fecha.split('/');
+        if(new Date(+y, +mo-1, +d) >= hace6sem) count++;
       });
     }
     return count;
