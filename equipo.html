@@ -5852,12 +5852,34 @@ const DIAS_SEMANA = ['domingo','lunes','martes','miércoles','jueves','viernes',
 const diaPlural = n => /s$/.test(DIAS_SEMANA[n]) ? DIAS_SEMANA[n] : DIAS_SEMANA[n] + 's';
 // Día en que se juega la Liga. De aquí salen el calendario y todos los textos.
 const SL_DIA = 4;   // jueves
+// Jornadas de Liga por temporada: el calendario deja de marcarla al llegar aquí.
+const SL_JORNADAS = 35;
 // Competiciones que se juegan cada semana el mismo día (0 = domingo … 6 = sábado).
 // El icono sale de CTX_INFO. Añadir otra = una línea aquí.
 // `hasta` (opcional, 'AAAA-MM-DD'): último día en que se marca.
+// `n` (opcional): nº de jornadas; al llegar a n se deja de marcar.
+// `desde` ('AAAA-MM-DD'): primer día desde el que se cuentan las jornadas.
 const CAL_SEMANALES = [
-  { src:'sl', dia:SL_DIA, hasta:'2027-12-31' },   // temporada = año natural
+  { src:'sl', dia:SL_DIA, desde:'2027-01-01', hasta:'2027-12-31', n:SL_JORNADAS },   // temporada = año natural
 ];
+// Fechas ('AAAA-MM-DD') de una competición semanal: cada `dia` desde `desde`
+// hasta `hasta`, sin meses parados ni días sin jornada, como mucho `n`.
+function _calFechasSemanal(e){
+  const out = new Set();
+  const iso = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  const [y0, m0, d0] = (e.desde || (CAL_MES.anio + '-' + String(CAL_MES.mes).padStart(2,'0') + '-01')).split('-').map(Number);
+  const f = new Date(y0, m0-1, d0);
+  while(f.getDay() !== e.dia) f.setDate(f.getDate() + 1);
+  for(let guard = 0; guard < 600; guard++, f.setDate(f.getDate() + 7)){
+    const k = iso(f);
+    if(e.hasta && k > e.hasta) break;
+    if(e.n && out.size >= e.n) break;
+    if(CAL_MESES_PARADOS.includes(f.getMonth()+1)) continue;
+    if((CAL_SIN_JORNADA[e.src] || []).includes(k)) continue;
+    out.add(k);
+  }
+  return out;
+}
 // Competiciones que se juegan una vez al mes: el `orden`º `dia` de la semana
 // (0 = domingo) de cada mes (orden -1 = el último del mes), desde `desde`
 // ('AAAA-MM') hasta completar `n` jornadas. Los meses parados no cuentan.
@@ -5957,6 +5979,7 @@ function renderCalendario(el){
   h += '</div>' + rejilla + ';margin-top:' + CAL_ESPACIO + 'px">';
   for(let i=0;i<hueco;i++) h += '<div></div>';
   const parado = CAL_MESES_PARADOS.includes(mes);
+  const _calSemanales = CAL_SEMANALES.filter(e => CTX_INFO[e.src]).map(e => ({ src:e.src, fechas:_calFechasSemanal(e) }));
   const _calMensuales = CAL_MENSUALES.filter(e => CTX_INFO[e.src]).map(e => {
     const fechas = _calFechasMensual(e);
     const orden = [...fechas].sort();
@@ -5969,10 +5992,8 @@ function renderCalendario(el){
     const iso = anio + '-' + String(mes).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     h += '<div style="min-height:56px;border:1px solid ' + (esHoy?'#374151':'#e5e7eb') + ';border-radius:6px;padding:4px 5px;background:' + (parado ? CAL_RAYADO : (finde?'#f9fafb':'#fff')) + '">'
        + '<div style="font-size:11px;font-weight:' + (esHoy?'700':'500') + ';color:' + (finde?'#9ca3af':'#374151') + '">' + d + '</div>'
-       + CAL_SEMANALES.filter(e => !parado && e.dia === f.getDay() && CTX_INFO[e.src]
-             && !(e.hasta && iso > e.hasta)
-             && !(CAL_SIN_JORNADA[e.src] || []).includes(iso))
-           .map(e => ({ src:e.src }))
+       + _calSemanales.filter(x => !parado && x.fechas.has(iso))
+           .map(x => ({ src:x.src }))
            .concat(parado ? [] : _calMensuales.filter(x => x.fechas.has(iso)).map(x => ({ src:x.src, txt:x.txt(iso) })))
            .concat(parado ? [] : CAL_PUNTUALES.filter(x => x.fecha === iso))
            .map(ev => '<div style="font-size:18px;line-height:1;text-align:center;margin-top:6px">' + (ev.icon || _calIcono(ev.src))
