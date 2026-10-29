@@ -114,6 +114,25 @@ input,select{font-size:11px;padding:3px 6px;border:1px solid #d1d5db;border-radi
 }
 #tab-entrenamiento .ent-subtab span { opacity: .6; margin-left: 4px; }
 #tab-entrenamiento .ent-subtab.activa { background: var(--ent-accent); border-color: var(--ent-accent); color: #fff; }
+/* Desplegables Trials / Entrenamientos libres dentro de una temporada (desde 2027) */
+#tab-entrenamiento .ent-grupo { margin: 0 0 18px; }
+#tab-entrenamiento .ent-grupo summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 8px 4px 10px; margin-bottom: 12px;
+  border-bottom: 1px solid var(--ent-border-strong);
+}
+#tab-entrenamiento .ent-grupo summary::-webkit-details-marker { display: none; }
+#tab-entrenamiento .ent-grupo summary::marker { content: ''; }
+#tab-entrenamiento .ent-grupo summary:hover { border-bottom-color: var(--ent-accent); }
+#tab-entrenamiento .ent-grupo-titulo {
+  font-size: 12px; letter-spacing: 3px; text-transform: uppercase; font-weight: 700;
+  color: var(--ent-ink-muted); flex: 1 1 auto;
+}
+#tab-entrenamiento .ent-grupo-count { font-size: 11px; font-weight: 600; color: var(--ent-muted, #8a7a5c); }
+#tab-entrenamiento .ent-grupo-chevron { font-size: 14px; color: var(--ent-accent); transition: transform 0.2s; }
+#tab-entrenamiento .ent-grupo[open] .ent-grupo-chevron { transform: rotate(180deg); }
+#tab-entrenamiento .ent-grupo-vacio { font-size: 12px; color: var(--ent-ink-muted); margin: 0 0 8px 4px; font-style: italic; }
 #tab-entrenamiento .ent-subtitulo {
   font-size: 11px; letter-spacing: 3px; text-transform: uppercase; font-weight: 600;
   color: var(--ent-ink-muted); margin: 0 0 12px 4px;
@@ -1504,10 +1523,18 @@ const CAMPO_APODOS    = 'ROC 3';
 const RECORRIDO_DEF   = 'FCPP';
 
 // Ventana móvil para medias, HCP y clasificaciones de "mejor N".
-const VENTANA    = 12;
+const VENTANA    = 10;
 // Del HCP se descartan, dentro de la ventana, las DESCARTES_HCP mejores y las
-// DESCARTES_HCP peores actuaciones (delta efectivo): con 12 y 1, cuentan 10.
-const DESCARTES_HCP = 1;
+// DESCARTES_HCP peores actuaciones (delta efectivo). Desde el 29/10/2026 = 0:
+// media aritmética de las VENTANA últimas, sin descartes.
+const DESCARTES_HCP = 0;
+// Premio de adaptabilidad (29/10/2026): se RESTAN golpes al HCP, nunca un %,
+// para que premie igual con HCP positivo, cero o negativo.
+//   premio = ADAPT_GOLPES_ESCALON × min(campos − 1, ADAPT_TOPE_CAMPOS − 1) × ratio
+// Con 5 campos bien repartidos = 0,5 × 4 × 1 = 2 golpes (ADAPT_PREMIO_MAX).
+const ADAPT_GOLPES_ESCALON = 0.5;
+const ADAPT_TOPE_CAMPOS    = 5;
+const ADAPT_PREMIO_MAX     = ADAPT_GOLPES_ESCALON * (ADAPT_TOPE_CAMPOS - 1);
 // Ventanas largas que se muestran en la ficha del jugador, además del HCP
 // Global oficial (VENTANA). Se calculan con calcHandicapGlobal(...,ventana).
 const VENTANAS_FICHA = [20, 30];
@@ -5233,14 +5260,35 @@ return acts;
 // Días de gracia sin jugar antes de que el HCP empiece a oxidarse, y tasa de
 // penalización por cada día a partir de ahí. Las dos las usan calcHandicapGlobal
 // y la leyenda visual de Oxidación: si se tocan aquí, cambian en ambos sitios.
-const DIAS_GRACIA_OXIDACION = 12;
+const DIAS_GRACIA_OXIDACION = 14;   // 29/10/2026: antes 12
+
+// Meses (1-12) en que el club no juega nada, cualquier año (julio y agosto).
+// Fuente única: la usan el Calendario (días rayados) y el HCP, que CONGELA
+// esos meses: no cuentan como días sin jugar (oxidación) ni para medir lo que
+// abarca la ventana (ventana estirada).
+const MESES_PARADOS = [7, 8];
+// Días entre dos fechas sin contar los días de MESES_PARADOS.
+function _diasSinParon(desde, hasta){
+  const a = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
+  const b = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+  let dias = Math.round((b - a) / 86400000);
+  if(dias <= 0) return 0;
+  for(let y = a.getFullYear(); y <= b.getFullYear(); y++){
+    MESES_PARADOS.forEach(m => {
+      const ini = Math.max(+new Date(y, m-1, 1), +a);
+      const fin = Math.min(+new Date(y, m, 1), +b);
+      if(fin > ini) dias -= Math.round((fin - ini) / 86400000);
+    });
+  }
+  return Math.max(0, dias);
+}
 const TASA_OXIDACION_DIA = 0.05;
 
 // Segunda capa: penalización por VENTANA ESTIRADA en el tiempo. Si las VENTANA
 // últimas actuaciones del jugador (descartadas incluidas) abarcan más de
 // UMBRAL_DISPERSION_DIAS, se añade TASA_DISPERSION_DIA por cada día por encima.
 // Mide si tu HCP descansa sobre datos demasiado viejos aunque no te hayas
-// oxidado (jugaste hace 13 días, pero tu ventana ocupa 4 meses). Calendario de
+// oxidado (jugaste hace 14 días, pero tu ventana ocupa 4 meses). Calendario de
 // referencia: Liga cada jueves + Tour y entreno al mes ≈ 57 días para 12.
 const UMBRAL_DISPERSION_DIAS = 70;
 const TASA_DISPERSION_DIA   = 0.02;
@@ -5460,8 +5508,8 @@ function _calcHistoricoN1Global(umbral){
 // Cuanto más "blando" el contexto o más fácil el campo, más se suma. Medal play
 // (Copa) sin ajuste de contexto; stableford a 5 (Liga, Tour, Entreno) +0,5.
 //
-//   · Si n >= VENTANA (12): hcp = media de los 12 últimos deltas efectivos
-//     sin el mejor ni el peor (DESCARTES_HCP), es decir, de 10
+//   · Si n >= VENTANA: hcp = media aritmética de los VENTANA últimos deltas
+//     efectivos, quitando DESCARTES_HCP mejores y peores (hoy 0: sin descartes)
 //   · Si n <  VENTANA: hcp = null (sin HCP hasta completar la ventana)
 //   · Si n == 0: hcp = null
 // `camposExcluidos` (opcional): array de nombres de campo que quedan fuera del
@@ -5631,7 +5679,7 @@ function calcHandicapGlobal(jugador, fechaCorte, forzarMediaParcial, alphaWeight
   let daysOff = 0, penalAdd = 0;
   const masReciente = actsFiltradas[0].fecha; // actsFiltradas ya está ordenado desc
   const hoy = (fechaCorte instanceof Date) ? fechaCorte : new Date();
-  daysOff = Math.max(0, Math.floor((hoy - masReciente) / (1000*60*60*24)));
+  daysOff = _diasSinParon(masReciente, hoy);   // julio y agosto congelados
   if(daysOff > DIAS_GRACIA_OXIDACION && hcp !== null){
     const diasPenalizados = daysOff - DIAS_GRACIA_OXIDACION;
     penalAdd = diasPenalizados * TASA_OXIDACION_DIA;
@@ -5649,7 +5697,7 @@ function calcHandicapGlobal(jugador, fechaCorte, forzarMediaParcial, alphaWeight
   //   por cada día por encima. Tope global del HCP: +18.
   let diasVentana = 0, penalDispersion = 0;
   if(used.length >= 2 && hcp !== null){
-    diasVentana = Math.max(0, Math.floor((used[0].fecha - used[used.length-1].fecha) / (1000*60*60*24)));
+    diasVentana = _diasSinParon(used[used.length-1].fecha, used[0].fecha);   // sin julio ni agosto
     // El umbral escala con la ventana: UMBRAL_DISPERSION_DIAS para 10
     // actuaciones, el doble para 20 y el triple para 30. Si no, una ventana más larga se penalizaría solo por
     // ser más larga y los tres HCP no serían comparables.
@@ -5665,18 +5713,17 @@ function calcHandicapGlobal(jugador, fechaCorte, forzarMediaParcial, alphaWeight
     }
   }
 
-  // Premio por variedad de campos en la ventana usada (últimas 10).
+  // Premio por variedad de campos en la ventana usada (últimas VENTANA).
   // Métrica: media geométrica con raíz 1/(n−1) (más estricta que 1/n):
   //   producto       = a × b × c × …  (vueltas en cada campo distinto)
   //   mejor_posible  = producto del balance más igualado posible para n campos en N vueltas
   //   ratio          = (producto / mejor_posible)^(1/(n−1))   ∈ [0, 1]
-  //   factor         = min(n − 1, 4)   ← TOPE: el premio se congela a partir de 5 campos
-  //   descuento      = 0.030 × factor × ratio
-  //   hcp_final      = hcp × (1 − descuento)
-  // Descuento MÁXIMO posible = 0.030 × 4 × 1 = 12%.
-  // El tope a 5 campos evita que un "turismo extremo" (jugar 7+ campos distintos)
-  // arrastre el HCP a niveles irreales. Más allá de 5 campos, el premio ya no
-  // crece (ratio sigue siendo el balance, pero el factor está capado).
+  //   factor         = min(n − 1, ADAPT_TOPE_CAMPOS − 1)   ← el premio se congela en el tope
+  //   premio (golpes)= ADAPT_GOLPES_ESCALON × factor × ratio
+  //   hcp_final      = hcp − premio
+  // Premio MÁXIMO = ADAPT_PREMIO_MAX golpes. Es una resta, no un %: con HCP
+  // negativo un porcentaje lo acercaría a 0 y el premio sería un castigo.
+  // `descuentoAdapt` se devuelve en GOLPES.
   const cuentas = {};
   used.forEach(a => { if(a.campo) cuentas[a.campo] = (cuentas[a.campo]||0) + 1; });
   const valores = Object.values(cuentas);
@@ -5689,11 +5736,10 @@ function calcHandicapGlobal(jugador, fechaCorte, forzarMediaParcial, alphaWeight
     const resto    = N % camposDistintos;
     const mejorPosible = Math.pow(floorDiv + 1, resto) * Math.pow(floorDiv, camposDistintos - resto);
     const ratio    = mejorPosible > 0 ? Math.pow(producto / mejorPosible, 1 / (camposDistintos - 1)) : 0;
-    const factor   = Math.min(camposDistintos - 1, 4);
-    descuentoAdapt = 0.030 * factor * ratio;
-    if(hcp !== null) hcp = hcp * (1 - descuentoAdapt);
+    const factor   = Math.min(camposDistintos - 1, ADAPT_TOPE_CAMPOS - 1);
+    descuentoAdapt = ADAPT_GOLPES_ESCALON * factor * ratio;
+    if(hcp !== null) hcp = hcp - descuentoAdapt;
   }
-  const factorVar = descuentoAdapt > 0 ? 1 / (1 - descuentoAdapt) : 1.0;
 
   return {
     hcp,
@@ -5706,8 +5752,7 @@ function calcHandicapGlobal(jugador, fechaCorte, forzarMediaParcial, alphaWeight
     penalDispersion,    // golpes añadidos por ventana estirada (>UMBRAL_DISPERSION_DIAS)
     sigma,
     camposDistintos,
-    factorVar,
-    descuentoAdapt,
+    descuentoAdapt,     // premio de adaptabilidad en golpes (se resta)
     used,            // las VENTANA actuaciones de la ventana (descartadas marcadas)
   };
 }
@@ -5819,13 +5864,16 @@ const CAL_SEMANALES = [
 // `mover` (opcional): jornadas que se cambian de día, { 'fecha de la regla': 'fecha nueva' }.
 // `extra` (opcional): jornadas añadidas fuera de la regla ('AAAA-MM-DD'); cuentan en `n`.
 // `minDias` (opcional): separación mínima entre dos jornadas; si no se cumple, aviso en consola.
+// `campos` (opcional): campo de cada jornada en orden de fecha; sale como rótulo bajo el icono.
 const CAL_MENSUALES = [
   // Tour: último domingo de enero a junio (+ el 10/01) y uno al mes de septiembre
   // a noviembre, adelantados para dejar 3 semanas entre Tours y no pisar el
   // Match Play (13, 14 y 21/11) ni la Copa (28/11). Diciembre sin Tour.
   { src:'sptr', orden:-1, dia:0, desde:'2027-01', n:10, minDias:21,
     mover: { '2027-09-26':'2027-09-12', '2027-10-31':'2027-10-10', '2027-11-28':'2027-11-07' },
-    extra: ['2027-01-10'] },
+    extra: ['2027-01-10'],
+    campos: ['Mas Gurumbau','Teia','HCP1','Oller del Mas','La Garriga','Montseny',
+             'Portal del Roc','Vallromanes','Sant Cebrià','Costa Daurada'] },
 ];
 // Fechas ('AAAA-MM-DD') de una competición mensual.
 function _calFechasMensual(e){
@@ -5872,7 +5920,7 @@ function _calIcono(src){
 }
 // Días en que una competición NO se juega (festivos, etc.): 'AAAA-MM-DD'.
 // Meses (1-12) en que no se juega nada, cualquier año: días rayados y sin iconos.
-const CAL_MESES_PARADOS = [7, 8];   // julio y agosto
+const CAL_MESES_PARADOS = MESES_PARADOS;   // julio y agosto (fuente única arriba)
 const CAL_RAYADO = 'repeating-linear-gradient(135deg,#eef0f3 0 5px,#fafafa 5px 10px)';
 const CAL_SIN_JORNADA = {
   sl: [],
@@ -5909,7 +5957,11 @@ function renderCalendario(el){
   h += '</div>' + rejilla + ';margin-top:' + CAL_ESPACIO + 'px">';
   for(let i=0;i<hueco;i++) h += '<div></div>';
   const parado = CAL_MESES_PARADOS.includes(mes);
-  const _calMensuales = CAL_MENSUALES.filter(e => CTX_INFO[e.src]).map(e => ({ src:e.src, fechas:_calFechasMensual(e) }));
+  const _calMensuales = CAL_MENSUALES.filter(e => CTX_INFO[e.src]).map(e => {
+    const fechas = _calFechasMensual(e);
+    const orden = [...fechas].sort();
+    return { src:e.src, fechas, txt: iso => (e.campos || [])[orden.indexOf(iso)] };
+  });
   for(let d=1; d<=nDias; d++){
     const f = new Date(anio, mes-1, d);
     const finde = ((f.getDay()+6)%7) >= 5;
@@ -5921,7 +5973,7 @@ function renderCalendario(el){
              && !(e.hasta && iso > e.hasta)
              && !(CAL_SIN_JORNADA[e.src] || []).includes(iso))
            .map(e => ({ src:e.src }))
-           .concat(parado ? [] : _calMensuales.filter(x => x.fechas.has(iso)).map(x => ({ src:x.src })))
+           .concat(parado ? [] : _calMensuales.filter(x => x.fechas.has(iso)).map(x => ({ src:x.src, txt:x.txt(iso) })))
            .concat(parado ? [] : CAL_PUNTUALES.filter(x => x.fecha === iso))
            .map(ev => '<div style="font-size:18px;line-height:1;text-align:center;margin-top:6px">' + (ev.icon || _calIcono(ev.src))
                 + (ev.txt ? '<div style="font-size:8px;font-weight:700;letter-spacing:0;line-height:1.15;color:#6b7280;margin:2px -4px 0;text-transform:uppercase">' + ev.txt + '</div>' : '')
@@ -5975,7 +6027,10 @@ function renderInstrucciones(el){
   const _ctxFuera = Object.keys(ctxActivos()).filter(function(k){ return !cuentaParaHCP(k); }).map(function(k){ return CTX_INFO[k].label; });
   h += '<div style="margin-bottom:14px;color:#555">El HCP se calcula sobre las <b>últimas ' + VENTANA + ' actuaciones</b> del jugador en las competiciones del club: ' + _ctxLista + '. '
      + (_ctxFuera.length ? _ctxFuera.join(', ') + ' no cuenta. ' : '')
-     + 'De esas ' + VENTANA + ' se <b>descartan la mejor y la peor</b> y el HCP base es la media de las ' + (VENTANA - 2 * DESCARTES_HCP) + ' restantes. <b>No se asigna HCP hasta completar ' + VENTANA + ' partidas</b> en la ventana.</div>';
+     + (DESCARTES_HCP > 0
+         ? 'De esas ' + VENTANA + ' se <b>descartan la mejor y la peor</b> y el HCP base es la media de las ' + (VENTANA - 2 * DESCARTES_HCP) + ' restantes. '
+         : 'El HCP base es la <b>media aritmética</b> de esas ' + VENTANA + ', sin descartar ninguna: todas cuentan. ')
+     + '<b>No se asigna HCP hasta completar ' + VENTANA + ' partidas</b> en la ventana.</div>';
 
   // ─── Sección 1: Ajuste por contexto ───
   h += '<div style="margin-top:14px;padding-top:12px;border-top:1px dashed #d1d5db">';
@@ -6045,10 +6100,16 @@ function renderInstrucciones(el){
   h += '</tbody></table>';
   h += '</div>';
 
+  // Texto del parón: nombres de MESES_PARADOS (julio y agosto).
+  function _txtParon(){
+    const nom = MESES_PARADOS.map(m => new Date(2000, m-1, 1).toLocaleDateString('es-ES',{month:'long'}));
+    const lista = nom.length > 1 ? nom.slice(0,-1).join(', ') + ' y ' + nom[nom.length-1] : nom[0];
+    return 'Los días de <b>' + lista + '</b> no cuentan: el parón queda congelado.';
+  }
   // ─── Sección 2: Oxidación por inactividad ───
   h += '<div style="margin-top:14px;padding-top:12px;border-top:1px dashed #d1d5db">';
   h += '<div style="font-weight:600;color:#1a1a1a;margin-bottom:6px">🛢️ Oxidación por inactividad</div>';
-  h += `<div style="color:#6b7280;font-size:11px;margin-bottom:8px">Si pasa tiempo desde tu última partida, el HCP sube. Los primeros <b>${DIAS_GRACIA_OXIDACION} días son gratis</b> (período de gracia). A partir del día ${DIAS_GRACIA_OXIDACION+1}: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">hcp += ${TASA_OXIDACION_DIA.toFixed(2)} × (días − 14)</code>. Tope: <b>+18</b>.</div>`;
+  h += `<div style="color:#6b7280;font-size:11px;margin-bottom:8px">Si pasa tiempo desde tu última partida, el HCP sube. Los primeros <b>${DIAS_GRACIA_OXIDACION} días son gratis</b> (período de gracia). A partir del día ${DIAS_GRACIA_OXIDACION+1}: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">hcp += ${TASA_OXIDACION_DIA.toFixed(2)} × (días − ${DIAS_GRACIA_OXIDACION})</code>. Tope: <b>+18</b>. ${_txtParon()}</div>`;
   h += '<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:6px">';
   h += '<thead><tr style="background:#f3f4f6;color:#374151"><th style="text-align:left;padding:6px 8px;border:1px solid #e5e7eb">Días sin jugar</th><th style="text-align:center;padding:6px 8px;border:1px solid #e5e7eb">Penalización</th><th style="text-align:right;padding:6px 8px;border:1px solid #e5e7eb">HCP base 6.0 →</th></tr></thead>';
   h += '<tbody>';
@@ -6082,7 +6143,7 @@ function renderInstrucciones(el){
   // ─── Sección 2.b: Ventana estirada (dispersión temporal) ───
   h += '<div style="margin-top:14px;padding-top:12px;border-top:1px dashed #d1d5db">';
   h += '<div style="font-weight:600;color:#1a1a1a;margin-bottom:6px">📏 Ventana estirada</div>';
-  h += `<div style="color:#6b7280;font-size:11px;margin-bottom:8px">Aunque no te oxides (juegas seguido), si tus ${VENTANA} últimas partidas abarcan más de <b>${UMBRAL_DISPERSION_DIAS} días</b> tu HCP se basa en datos viejos. A partir de ese umbral: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">hcp += ${TASA_DISPERSION_DIA.toFixed(2)} × (días_ventana − ${UMBRAL_DISPERSION_DIAS})</code>. Tope: <b>+18</b>. Se suma a la oxidación.</div>`;
+  h += `<div style="color:#6b7280;font-size:11px;margin-bottom:8px">Aunque no te oxides (juegas seguido), si tus ${VENTANA} últimas partidas abarcan más de <b>${UMBRAL_DISPERSION_DIAS} días</b> tu HCP se basa en datos viejos. A partir de ese umbral: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">hcp += ${TASA_DISPERSION_DIA.toFixed(2)} × (días_ventana − ${UMBRAL_DISPERSION_DIAS})</code>. Tope: <b>+18</b>. Se suma a la oxidación. ${_txtParon()}</div>`;
   h += '<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:6px">';
   h += '<thead><tr style="background:#f3f4f6;color:#374151"><th style="text-align:left;padding:6px 8px;border:1px solid #e5e7eb">Días ventana ' + VENTANA + '</th><th style="text-align:center;padding:6px 8px;border:1px solid #e5e7eb">Penalización</th></tr></thead>';
   h += '<tbody>';
@@ -6106,15 +6167,15 @@ function renderInstrucciones(el){
   // ─── Sección 3: Adaptabilidad de campo ───
   h += '<div style="margin-top:14px;padding-top:12px;border-top:1px dashed #d1d5db">';
   h += '<div style="font-weight:600;color:#1a1a1a;margin-bottom:6px">⛳ Adaptabilidad de campo</div>';
-  h += '<div style="color:#6b7280;font-size:11px;margin-bottom:8px">Premio por <b>rotación REAL</b>. Métrica: media geométrica con raíz <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">1/(n−1)</code>: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">ratio = (producto / mejor_posible)^(1/(n−1))</code>. Sustracción: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">descuento = 0.030 × min(n−1, 4) × ratio · HCP × (1−descuento)</code>. Tope: 5 campos. Máx descuento: 12%.</div>';
-  h += '<div style="color:#6b7280;font-size:11px;margin-bottom:8px">Rangos de descuento por número de campos distintos (<code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">n</code>) en las últimas ' + VENTANA + ' actuaciones. <b>Ejemplo</b> con HCP base +5.00:</div>';
+  h += '<div style="color:#6b7280;font-size:11px;margin-bottom:8px">Premio por <b>rotación REAL</b>: se <b>restan golpes</b> al HCP, así premia igual tengas el HCP que tengas (positivo, PAR o negativo). Métrica: media geométrica con raíz <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">1/(n−1)</code>: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">ratio = (producto / mejor_posible)^(1/(n−1))</code>. <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">premio = ' + String(ADAPT_GOLPES_ESCALON).replace('.',',') + ' × min(n−1, ' + (ADAPT_TOPE_CAMPOS - 1) + ') × ratio · HCP − premio</code>. Tope: ' + ADAPT_TOPE_CAMPOS + ' campos. Premio máximo: ' + String(ADAPT_PREMIO_MAX).replace('.',',') + ' golpes.</div>';
+  h += '<div style="color:#6b7280;font-size:11px;margin-bottom:8px">Golpes que se restan según el número de campos distintos (<code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">n</code>) en las últimas ' + VENTANA + ' actuaciones. <b>Ejemplo</b> con HCP base +5.00:</div>';
   h += '<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:6px">';
   h += '<thead><tr style="background:#f3f4f6;color:#374151"><th style="text-align:center;padding:6px 8px;border:1px solid #e5e7eb;width:18%">n</th><th style="text-align:center;padding:6px 8px;border:1px solid #e5e7eb">mín</th><th style="text-align:center;padding:6px 8px;border:1px solid #e5e7eb">máx</th></tr></thead>';
   h += '<tbody>';
   // Tabla compacta mín/máx por n, calculada al vuelo desde la fórmula real
-  // (coef 0.030, tope min(n-1, 4)). Si cambia algún parámetro arriba, se actualiza sola.
-  const COEF_EJEMPLO = 0.030;
-  const TOPE_EJEMPLO = 4;
+  // (ADAPT_GOLPES_ESCALON, ADAPT_TOPE_CAMPOS). Si cambia algún parámetro, se actualiza sola.
+  const COEF_EJEMPLO = ADAPT_GOLPES_ESCALON;
+  const TOPE_EJEMPLO = ADAPT_TOPE_CAMPOS - 1;
   const HCP_BASE_EJEMPLO = 5.00;
   const _calcEj = (reparto) => {
     const n = reparto.length;
@@ -6125,7 +6186,7 @@ function renderInstrucciones(el){
     const ratio = n>1 ? Math.pow(prod/mejor, 1/(n-1)) : 0;
     const factor = Math.min(n-1, TOPE_EJEMPLO);
     const desc = COEF_EJEMPLO * factor * ratio;
-    return { ratio, desc, hcp: HCP_BASE_EJEMPLO * (1 - desc) };
+    return { ratio, desc, hcp: HCP_BASE_EJEMPLO - desc };
   };
   // Reparto más descompensado posible (un campo acumula casi todo) y reparto balanceado ideal.
   const _peor  = (n, N) => [N - n + 1, ...Array(n-1).fill(1)];
@@ -6134,18 +6195,18 @@ function renderInstrucciones(el){
     return [...Array(rest).fill(flr+1), ...Array(n-rest).fill(flr)];
   };
   const N_REF = 10;
-  [2, 3, 4, 5].forEach(n => {
+  Array.from({length: ADAPT_TOPE_CAMPOS - 1}, (_, i) => i + 2).forEach(n => {
     const cMin = _calcEj(_peor(n, N_REF));
     const cMax = _calcEj(_mejor(n, N_REF));
-    const resaltar = (n === 5);
+    const resaltar = (n === ADAPT_TOPE_CAMPOS);
     const bg = resaltar ? ' style="background:#f0fdf4"' : '';
     const nLbl = resaltar ? `<b>${n}</b>` : `${n}`;
     h += `<tr${bg}><td style="text-align:center;padding:5px 8px;border:1px solid #e5e7eb;font-weight:600">${nLbl}</td>`+
-         `<td style="text-align:center;padding:5px 8px;border:1px solid #e5e7eb">${(cMin.desc*100).toFixed(2)}% <span style="color:#9ca3af;font-family:monospace">(→ +${cMin.hcp.toFixed(2)})</span></td>`+
-         `<td style="text-align:center;padding:5px 8px;border:1px solid #e5e7eb">${(cMax.desc*100).toFixed(2)}% <span style="color:#9ca3af;font-family:monospace">(→ +${cMax.hcp.toFixed(2)})</span></td></tr>`;
+         `<td style="text-align:center;padding:5px 8px;border:1px solid #e5e7eb">−${cMin.desc.toFixed(2)} <span style="color:#9ca3af;font-family:monospace">(→ +${cMin.hcp.toFixed(2)})</span></td>`+
+         `<td style="text-align:center;padding:5px 8px;border:1px solid #e5e7eb">−${cMax.desc.toFixed(2)} <span style="color:#9ca3af;font-family:monospace">(→ +${cMax.hcp.toFixed(2)})</span></td></tr>`;
   });
   h += '</tbody></table>';
-  h += '<div style="font-size:10.5px;color:#888;font-style:italic">Mín = reparto más descompensado posible (1 vuelta en todos los campos menos uno). Máx = reparto equilibrado. Desde n=5 el factor queda topado a 4 (máx 12%).</div>';
+  h += '<div style="font-size:10.5px;color:#888;font-style:italic">Mín = reparto más descompensado posible (1 vuelta en todos los campos menos uno). Máx = reparto equilibrado. Desde n=' + ADAPT_TOPE_CAMPOS + ' el premio ya no crece (máx ' + String(ADAPT_PREMIO_MAX).replace('.',',') + ' golpes).</div>';
   h += '</div>';
 
   h += '</div>';
@@ -6661,8 +6722,8 @@ function renderBitacoraGlobal(el){
     }
     if(desc > 0){
       html += `<tr style="background:#fef3c7">`;
-      html += `<td colspan="7" style="text-align:right;padding:8px 6px;color:#854d0e;font-size:11px">Adaptabilidad · ${data.camposDistintos} campos distintos · descuento</td>`;
-      html += `<td style="text-align:right;padding:8px 6px;font-family:monospace;color:#0f766e;font-weight:600">−${(desc*100).toFixed(2)}%</td>`;
+      html += `<td colspan="7" style="text-align:right;padding:8px 6px;color:#854d0e;font-size:11px">Adaptabilidad · ${data.camposDistintos} campos distintos · premio</td>`;
+      html += `<td style="text-align:right;padding:8px 6px;font-family:monospace;color:#0f766e;font-weight:600">−${desc.toFixed(2)}</td>`;
       html += `</tr>`;
     }
     if(hayMods){
@@ -6910,8 +6971,8 @@ function renderPrimeGlobal(el){
     }
     if(desc > 0){
       html += `<tr style="background:#fef3c7">`;
-      html += `<td colspan="7" style="text-align:right;padding:8px 6px;color:#854d0e;font-size:11px">Adaptabilidad · ${data.camposDistintos} campos distintos · descuento</td>`;
-      html += `<td style="text-align:right;padding:8px 6px;font-family:monospace;color:#0f766e;font-weight:600">−${(desc*100).toFixed(2)}%</td>`;
+      html += `<td colspan="7" style="text-align:right;padding:8px 6px;color:#854d0e;font-size:11px">Adaptabilidad · ${data.camposDistintos} campos distintos · premio</td>`;
+      html += `<td style="text-align:right;padding:8px 6px;font-family:monospace;color:#0f766e;font-weight:600">−${desc.toFixed(2)}</td>`;
       html += `</tr>`;
     }
     if(hayMods){
@@ -11128,9 +11189,13 @@ function _renderListaTorneos(el, DATOS, cfg){
   // Tipo de entreno: 'libre' (sin selección) o 'trial' (por defecto).
   const esLibre = (e) => e && e.tipo === 'libre';
   const ENT_TIPOS = [
-    { id:'trial', label:'Trials' },
-    { id:'libre', label:'Libres' },
+    { id:'trial', label:'Trials', grupo:'🎯 Trials',               vacio:'Aún no hay trials.' },
+    { id:'libre', label:'Libres', grupo:'🏋️ Entrenamientos libres', vacio:'Aún no hay entrenamientos libres.' },
   ];
+  // Desde la temporada en que arranca el club (CARRERA_INICIO, 2027), cada
+  // temporada lleva siempre dos desplegables: Trials y Entrenamientos libres,
+  // aunque alguno esté vacío. Las anteriores (pretemporada 2026) se pintan igual que antes.
+  const ANIO_DOS_DESPLEGABLES = CARRERA_INICIO.getFullYear();
   // Libres: un bloque con varias sesiones; cuenta sesiones y muestra la última fecha.
   const nSesiones = (e) => esLibre(e) ? (e.jornadas||[]).length : 1;
   const fechaBloque = (e) => {
@@ -11222,7 +11287,21 @@ function _renderListaTorneos(el, DATOS, cfg){
       // Todo cerrado al entrar (temporadas y entrenos).
       const pintar = (items) => items.map(e => renderEntrenoBlock(e, false)).join('');
       let bloques;
-      if(grupos.length > 1){
+      if(anio >= ANIO_DOS_DESPLEGABLES){
+        bloques = ENT_TIPOS.map(t => {
+          const items = lista.filter(e => (esLibre(e) ? 'libre' : 'trial') === t.id);
+          const n = items.reduce((k,e) => k + nSesiones(e), 0);
+          return `
+          <details class="ent-grupo" data-grupo="${t.id}">
+            <summary>
+              <span class="ent-grupo-titulo">${t.grupo}</span>
+              <span class="ent-grupo-count">${n}</span>
+              <span class="ent-grupo-chevron">▾</span>
+            </summary>
+            ${items.length ? pintar(items) : `<div class="ent-grupo-vacio">${t.vacio}</div>`}
+          </details>`;
+        }).join('');
+      } else if(grupos.length > 1){
         bloques = `<div class="ent-subtabs">`
           + grupos.map((g, i) => `<button type="button" class="ent-subtab${i === 0 ? ' activa' : ''}" data-sub="${g.id}" onclick="window.__entSubtab(this)">${g.label} <span>${g.items.reduce((n,e) => n + nSesiones(e), 0)}</span></button>`).join('')
           + `</div>`
@@ -11438,7 +11517,7 @@ window.__mostrarTarjetasGlobal = function(jugador){
   };
   const sigmaTxt = data.sigma !== null ? data.sigma.toFixed(2) : '—';
   const camposTxt = data.camposDistintos > 1
-    ? `${data.camposDistintos} campos · −${(data.descuentoAdapt*100).toFixed(1)}% (${fmtH(data.hcp * data.factorVar)})`
+    ? `${data.camposDistintos} campos · −${(data.descuentoAdapt||0).toFixed(2)} golpes (${fmtH(data.hcp + (data.descuentoAdapt||0))} sin premio)`
     : '1 campo · sin bonus';
   const inactivTxt = data.daysOff > DIAS_GRACIA_OXIDACION
     ? `${data.daysOff} días inactivo · penaliza +${data.penalAdd.toFixed(2)}`
@@ -11585,7 +11664,7 @@ window.__mostrarVentanaProgJug = function(pi, idx, titulo){
   document.getElementById('prog-meta').innerHTML =
       `<span>${fF(v.desde)} → ${fF(v.hasta)}</span>`
     + `<span style="margin:0 10px;color:#d1d5db">·</span><span>media efectiva ${sg(v.base,2)}</span>`
-    + `<span style="margin:0 10px;color:#d1d5db">·</span><span>${v.camposDistintos} campos · −${((v.descuentoAdapt||0)*100).toFixed(1)}%</span>`
+    + `<span style="margin:0 10px;color:#d1d5db">·</span><span>${v.camposDistintos} campos · −${(v.descuentoAdapt||0).toFixed(2)}</span>`
     + (pen > 0.005 ? `<span style="margin:0 10px;color:#d1d5db">·</span><span>penalización +${pen.toFixed(2)}</span>` : '')
     + `<span style="margin:0 10px;color:#d1d5db">·</span><span>= HCP Global ${sg(v.v,2)}</span>`;
   document.getElementById('prog-tabla').innerHTML = `
