@@ -1609,7 +1609,7 @@ const TITULOS_COMPETICIONES = [
   { id:'mp',   icon:'⚔️', label:'Match Play', src:'mp'   },
   { id:'copa', icon:'🏆', label:'Copa',       src:'copa' },
   { id:'rkg',  icon:'📊', label:'Ranking federación', src:'rkg' },
-  // Bola de oro: quien más birdies hace en la temporada, en cualquier contexto.
+  // Bola de oro: quien más birdies hace en la temporada (sin Interclubs ni Match Play).
   { id:'bola', icon:ICONO_BOLA_ORO, label:'Bola de oro', src:null },
 ];
 
@@ -1636,10 +1636,11 @@ function _ganadorCopa(anio){
 }
 
 // ── BOLA DE ORO ──
-// Contextos que suman, en el orden de las columnas de la pestaña. El Match Play
-// no cuenta. Cuenta todo hoyo de 2 o menos (birdie o mejor); el hole in one
-// (1 golpe) se lleva aparte porque es el desempate.
-const BOLA_CONTEXTOS = ['sl','sptr','copa','ic','rkg','ent'];
+// Contextos que suman, en el orden de las columnas de la pestaña. No cuentan
+// el Interclubs (se juega en equipo) ni el Match Play. Cuenta todo hoyo de 2 o
+// menos (birdie o mejor); el hole in one (1 golpe) se lleva aparte porque es el
+// primer desempate y los campos distintos con birdie, el segundo.
+const BOLA_CONTEXTOS = ['sl','sptr','copa','rkg','ent'];
 const BOLA_GOLPES_MAX = PAR_HOYO - 1;   // birdie o mejor
 const BOLA_HIO = 1;                      // hole in one
 
@@ -1661,25 +1662,27 @@ function birdiesTemporada(fila){
   fin.setHours(23,59,59);
   const dentro = d => d instanceof Date && d >= ini && d <= fin;
   const fichaDe = apo => out[apo] || (out[apo] = {
-    jugador:apo, total:0, hio:0,
+    jugador:apo, total:0, hio:0, campos:0, _campos:{},
     porCtx:Object.fromEntries(BOLA_CONTEXTOS.map(k => [k, 0])) });
-  const suma = (apo, src, hoyos) => {
+  const suma = (apo, src, hoyos, campo) => {
     if(!BOLA_CONTEXTOS.includes(src) || !Array.isArray(hoyos)) return;
     const r = fichaDe(apo);
     hoyos.forEach(v => {
       if(v == null || v > BOLA_GOLPES_MAX) return;
       r.total++; r.porCtx[src]++;
       if(v === BOLA_HIO) r.hio++;
+      if(campo && !r._campos[campo]){ r._campos[campo] = 1; r.campos++; }
     });
   };
-  (_recopilarActuacionesGlobal() || []).forEach(a => { if(dentro(a.fecha)) suma(a.jugador, a.src, a.hoyos); });
+  (_recopilarActuacionesGlobal() || []).forEach(a => { if(dentro(a.fecha)) suma(a.jugador, a.src, a.hoyos, a.campo); });
 
   // Interclubs · parejas: no entran en el HCP, pero sus birdies sí suman.
   // Si la prueba trae el hoyo a hoyo del jugador (p.hm[apodo]), manda la tarjeta.
   // Si no, se usa lo que se pregunta al acabar el partido: los hoyos donde hizo
   // birdie y los hoyos donde hizo hole in one.
   //   birdiesPareja: { Marc:[3,11], David:[7] },  hioPareja: { Marc:[14] }
-  if(typeof IC_DATA !== 'undefined' && typeof apodoDesdeNombreIC === 'function'){
+  // Solo si el Interclubs vuelve a estar en BOLA_CONTEXTOS.
+  if(BOLA_CONTEXTOS.includes('ic') && typeof IC_DATA !== 'undefined' && typeof apodoDesdeNombreIC === 'function'){
     Object.values(IC_DATA).forEach(yd => (yd.pruebas || []).forEach(p => {
       if(!p.fecha || !dentro(_fechaES(p.fecha))) return;
       const indis = new Set([p.ind1, p.ind2].filter(Boolean)
@@ -1697,7 +1700,7 @@ function birdiesTemporada(fila){
       deParejas.forEach(apo => {
         if(p.hm && p.hm[apo]){
           const v = _vueltaConAbandono(p.hm[apo].slice(), _hoyoAbandono(p, apo));
-          suma(apo, 'ic', v.reales);
+          suma(apo, 'ic', v.reales, p.campo);
           return;
         }
         const hB = Array.isArray(bir[apo]) ? bir[apo] : [];
@@ -1710,24 +1713,29 @@ function birdiesTemporada(fila){
           }
           vistos.add(n); hoyos[n-1] = golpes;
         }));
-        suma(apo, 'ic', hoyos);
+        suma(apo, 'ic', hoyos, p.campo);
       });
     }));
   }
   return out;
 }
 
-// Orden de la Bola de oro: birdies → hole in ones. Lo que siga empatado, decide Capi.
-function _ordenBola(a, b){ return (b.total - a.total) || (b.hio - a.hio); }
+// Orden de la Bola de oro: birdies → hole in ones → campos distintos donde ha
+// hecho birdie. Lo que siga empatado se decide a muerte súbita.
+function _ordenBola(a, b){ return (b.total - a.total) || (b.hio - a.hio) || (b.campos - a.campos); }
 
-// Bola de oro de una temporada cerrada. Con la temporada abierta, o con empate
-// en birdies y hole in ones, queda por decidir.
+// Bola de oro de una temporada cerrada. Con la temporada abierta queda por
+// decidir. Si siguen empatados tras los desempates, gana quien se apunte en la
+// fila del PALMARES como `bolaMuerteSubita: 'Apodo'` (ganador de la muerte
+// súbita); mientras no esté, queda pendiente.
 function _ganadorBola(fila){
   if(!fila.inicio || !fila.fin) return null;
   const orden = Object.values(birdiesTemporada(fila)).sort(_ordenBola);
   if(!orden.length || orden[0].total === 0) return null;
   if(orden[1] && _ordenBola(orden[0], orden[1]) === 0){
-    console.warn('[Bola de oro] Empate a ' + orden[0].total + ' birdies y ' + orden[0].hio + ' HIO en ' + fila.temporada + ': decide Capi.');
+    const empatados = orden.filter(r => _ordenBola(orden[0], r) === 0).map(r => r.jugador);
+    if(fila.bolaMuerteSubita && empatados.includes(fila.bolaMuerteSubita)) return fila.bolaMuerteSubita;
+    console.warn('[Bola de oro] Empate a ' + orden[0].total + ' birdies, ' + orden[0].hio + ' HIO y ' + orden[0].campos + ' campos en ' + fila.temporada + ' (' + empatados.join(', ') + '): muerte súbita pendiente.');
     return null;
   }
   return orden[0].jugador;
@@ -1737,10 +1745,10 @@ function _ganadorBola(fila){
 function renderBolaOro(el){
   const fila = _temporadaBola();
   const datos = fila ? birdiesTemporada(fila) : {};
-  const vacio = apo => ({ jugador:apo, total:0, hio:0, porCtx:Object.fromEntries(BOLA_CONTEXTOS.map(k => [k, 0])) });
+  const vacio = apo => ({ jugador:apo, total:0, hio:0, campos:0, porCtx:Object.fromEntries(BOLA_CONTEXTOS.map(k => [k, 0])) });
   const filas = EQUIPO.map(p => datos[p.apodo] || vacio(p.apodo))
     .sort((a, b) => _ordenBola(a, b) || a.jugador.localeCompare(b.jugador, 'es'));
-  // Posición compartida en empate (birdies y HIO iguales).
+  // Posición compartida en empate (birdies, HIO y campos iguales).
   filas.forEach((r, i) => { r.pos = (i > 0 && _ordenBola(filas[i-1], r) === 0) ? filas[i-1].pos : i + 1; });
 
   const th = 'padding:7px 6px;border-bottom:1px solid #e5e7eb;font-size:10.5px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;white-space:nowrap';
@@ -1753,7 +1761,7 @@ function renderBolaOro(el){
      + (fila ? '<span style="font-size:11px;color:#94a3b8">Temporada ' + fila.temporada + ' · desde ' + fila.inicio
         + (fila.fin ? ' hasta ' + fila.fin : ' · en curso') + '</span>' : '')
      + '</div>';
-  h += '<div style="font-size:11.5px;color:#6b7280;margin-bottom:12px">Birdies o mejor en todos los contextos. Empate: más hole in ones (HIO).</div>';
+  h += '<div style="font-size:11.5px;color:#6b7280;margin-bottom:12px">Birdies o mejor en ' + BOLA_CONTEXTOS.map(k => CTX_INFO[k].label).join(', ') + '. Empate: más hole in ones (HIO) → más campos distintos con birdie → muerte súbita.</div>';
   h += '<div style="overflow-x:auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px">';
   h += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
   h += '<thead><tr style="background:#f9fafb">'
@@ -1761,6 +1769,7 @@ function renderBolaOro(el){
      + '<th style="' + th + ';text-align:left">Jugador</th>'
      + '<th style="' + th + ';text-align:center;color:#8a6408">Total</th>'
      + '<th style="' + th + ';text-align:center" title="Hole in one">HIO</th>'
+     + '<th style="' + th + ';text-align:center" title="Campos distintos donde ha hecho birdie o mejor">Campos</th>'
      + BOLA_CONTEXTOS.map(k => '<th style="' + th + ';text-align:center">' + CTX_INFO[k].icon + ' ' + CTX_INFO[k].label + '</th>').join('')
      + '</tr></thead><tbody>';
   filas.forEach(r => {
@@ -1770,11 +1779,12 @@ function renderBolaOro(el){
        + '<td style="' + td + ';text-align:left;white-space:nowrap"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;background:' + (COLORS[r.jugador] || '#eee') + '"></span>' + r.jugador + '</td>'
        + '<td style="' + td + ';font-size:13px;color:#8a6408">' + num(r.total, true) + '</td>'
        + '<td style="' + td + '">' + num(r.hio) + '</td>'
+       + '<td style="' + td + '">' + num(r.campos) + '</td>'
        + BOLA_CONTEXTOS.map(k => '<td style="' + td + '">' + num(r.porCtx[k]) + '</td>').join('')
        + '</tr>';
   });
   h += '</tbody></table></div>';
-  h += '<div style="font-size:10.5px;color:#9ca3af;margin-top:8px">El Match Play no cuenta. Los hoyos rellenados por abandono tampoco.</div>';
+  h += '<div style="font-size:10.5px;color:#9ca3af;margin-top:8px">No cuentan el Interclubs (se juega en equipo) ni el Match Play. Los hoyos rellenados por abandono tampoco.</div>';
   h += '</div>';
   el.innerHTML = h;
 }
@@ -2626,8 +2636,8 @@ const CAMPOS = [
     {num:18, nombre:null,desc:null,metros:62, eppa:null, hcp:null},
   ] },
   { id:'bon_area',      nombre_oficial:'Pitch & Putt Bon Area',                  nombre_coloquial:'Bon Area',      localidad:'Lleida',                  par:54, hoyos: [
-    {num:1, nombre:null,desc:null,metros:73, eppa:76, hcp:null},
-    {num:2, nombre:null,desc:null,metros:73, eppa:76, hcp:null},
+    {num:1, nombre:null,desc:null,metros:73, eppa:73, hcp:null},
+    {num:2, nombre:null,desc:null,metros:73, eppa:73, hcp:null},
     {num:3, nombre:null,desc:null,metros:92, eppa:54, hcp:null},
     {num:4, nombre:null,desc:null,metros:80, eppa:80, hcp:null},
     {num:5, nombre:null,desc:null,metros:72, eppa:72, hcp:null},
@@ -2924,7 +2934,7 @@ const CAMPOS = [
 //              (cap 5) +0,5; medal play 0.
 //   · hcp    : true si alimenta el HCP Global (y con él la Iron Race). Solo
 //              cuentan las competiciones del club; Interclubs se registra en
-//              su pestaña, Bola de Oro y convocatoria, pero no toca el HCP.
+//              su pestaña y en la convocatoria, pero no toca el HCP ni la Bola de oro.
 //   · icon   : icono del modal "10 últimas actuaciones".
 //   · lbl    : etiqueta corta del badge (tabla + filtro por contexto).
 //   · label  : nombre largo (Records, tooltips).
@@ -3990,20 +4000,20 @@ function renderStatsGlobal(el){
    +'<div style="font-size:32px;font-weight:700;color:#1d4ed8;line-height:1">'+totalHoyos.toLocaleString("es-ES")+'</div>'
    +'<div style="font-size:10px;color:#aaa;margin-top:4px">18 hoyos × '+totalPartidos+' rondas</div>'
    +'</div>'
-   +'<div style="background:#fefce8;border-radius:12px;padding:14px 16px;border:1px solid #fde68a">'
-   +'<div style="font-size:11px;color:#555;margin-bottom:4px">Total birdies</div>'
-   +'<div style="font-size:32px;font-weight:700;color:#854d0e;line-height:1">'+totalBirdies+'</div>'
-   +'<div style="font-size:10px;color:#aaa;margin-top:4px">1 birdie cada '+ratioHoyo+' hoyos</div>'
+   +'<div style="background:#fdf4ff;border-radius:12px;padding:14px 16px;border:1px solid #e9d5ff">'
+   +'<div style="font-size:11px;color:#555;margin-bottom:4px">Jornadas disputadas</div>'
+   +'<div style="font-size:32px;font-weight:700;color:#7c3aed;line-height:1">'+totalJornadas+'</div>'
+   +'<div style="font-size:10px;color:#aaa;margin-top:4px">desde '+desde+'</div>'
    +'</div>'
    +'<div style="background:#f0fdf4;border-radius:12px;padding:14px 16px;border:1px solid #bbf7d0">'
    +'<div style="font-size:11px;color:#555;margin-bottom:4px">Rondas bajo par</div>'
    +'<div style="font-size:32px;font-weight:700;color:#65d000;line-height:1">'+totalBajopar+'</div>'
    +'<div style="font-size:10px;color:#aaa;margin-top:4px">'+pctBajo+'% de las rondas</div>'
    +'</div>'
-   +'<div style="background:#fdf4ff;border-radius:12px;padding:14px 16px;border:1px solid #e9d5ff">'
-   +'<div style="font-size:11px;color:#555;margin-bottom:4px">Jornadas disputadas</div>'
-   +'<div style="font-size:32px;font-weight:700;color:#7c3aed;line-height:1">'+totalJornadas+'</div>'
-   +'<div style="font-size:10px;color:#aaa;margin-top:4px">desde '+desde+'</div>'
+   +'<div style="background:#fefce8;border-radius:12px;padding:14px 16px;border:1px solid #fde68a">'
+   +'<div style="font-size:11px;color:#555;margin-bottom:4px">Total birdies</div>'
+   +'<div style="font-size:32px;font-weight:700;color:#854d0e;line-height:1">'+totalBirdies+'</div>'
+   +'<div style="font-size:10px;color:#aaa;margin-top:4px">1 birdie cada '+ratioHoyo+' hoyos</div>'
    +'</div>'
    +_tarjetaHIO(hio,'hio-popup-global')
    +'</div>'
@@ -5011,7 +5021,7 @@ function renderRadiografia(el, vueltas, campoKey){
 // ── HÁNDICAP GLOBAL ──
 // Para cada jugador, recoge sus actuaciones de los contextos con `hcp:true`
 // en CTX_INFO (Entrenamientos, Liga, Tour y Copa), las ordena por fecha desc.
-// Interclubs se recopila (stats, Bola de Oro, convocatoria) pero no entra.
+// Interclubs se recopila (stats, convocatoria) pero no entra.
 //
 // Cada delta se ajusta por SUMA FIJA de golpes (no porcentaje), con dos componentes:
 //   delta_efectivo = delta + ajuste_campo + ajuste_contexto
@@ -5134,7 +5144,7 @@ function _recopilarActuacionesGlobal(jugador){
     });
   }
 
-  // ── Tour (quedadas internas) ──
+  // ── Tour (torneo oficial, 10 pruebas por puntos) ──
   // Jornadas multi-campo con src 'sptr'. El ajuste sale de CTX_INFO.
   if(typeof TOUR_DATA !== 'undefined' && Array.isArray(TOUR_DATA)){
     TOUR_DATA.forEach(t => {
@@ -5320,8 +5330,8 @@ const UMBRAL_N1 = 10;
 // Desempate, en cascada y siempre sobre las MISMAS VENTANA actuaciones que
 // forman el hándicap de esa foto (descartadas incluidas):
 //   1. HCP a 3 decimales
-//   2. más birdies (2 golpes o menos en par 3)
-//   3. más campos distintos
+//   2. más campos distintos
+//   3. más birdies (2 golpes o menos en par 3)
 // Si aún así empatan, posición compartida y se reparten los puntos de los
 // puestos que ocupan (dos decimales).
 const CARRERA_PUNTOS = [36, 33, 29, 25, 22, 18, 15, 11, 7, 4];   // suman 200
@@ -5372,12 +5382,12 @@ function calcCarrera(temporada){
     if(!rk.length) return;
 
     // Orden por la cascada completa
-    rk.sort((a,b) => (a.hcp3 - b.hcp3) || (b.bir - a.bir) || (b.campos - a.campos));
+    rk.sort((a,b) => (a.hcp3 - b.hcp3) || (b.campos - a.campos) || (b.bir - a.bir));
 
     // Posición = 1 + cuántos son estrictamente mejores (empate = compartida)
     const mejorQue = (x,y) => (x.hcp3 !== y.hcp3) ? (x.hcp3 < y.hcp3)
-                            : (x.bir !== y.bir)   ? (x.bir > y.bir)
                             : (x.campos !== y.campos) ? (x.campos > y.campos)
+                            : (x.bir !== y.bir)   ? (x.bir > y.bir)
                             : false;
     // Empate: posición compartida y se reparten los puntos de los puestos que
     // ocupan (como en la Liga), así cada domingo se reparten siempre 200.
@@ -5786,27 +5796,28 @@ function _htmlPestanasInstrucciones(){
 
   const tarjetas = [
     { t: tabTxt('handicapglobal'), d:
-      'El hándicap del club: un único número por jugador que combina las competiciones del club (Liga, Tour, Copa, Ranking y Entrenamiento; Interclubs no cuenta). Se cogen sus <b>' + VENTANA + ' últimas actuaciones</b>, se quitan la mejor y la peor, y se hace la media de las ' + (VENTANA - 2 * DESCARTES_HCP) + ' restantes con los ajustes explicados arriba. '
+      'El hándicap del club: un único número por jugador que combina las competiciones del club (Liga, Tour, Copa, Ranking y Entrenamiento; Interclubs no cuenta). Se cogen sus <b>' + VENTANA + ' últimas actuaciones</b>' + (DESCARTES_HCP > 0 ? ', se quitan ' + (DESCARTES_HCP === 1 ? 'la mejor y la peor' : 'las ' + DESCARTES_HCP + ' mejores y las ' + DESCARTES_HCP + ' peores') + ', y se hace la media de las ' + (VENTANA - 2 * DESCARTES_HCP) + ' restantes' : ' y se hace la media') + ' con los ajustes explicados arriba. '
       + 'Dentro tienes: ' + subTabs.join(' · ') + '.' },
     { t: tabTxt('ironrace'), d:
       'El premio más importante del año, al hándicap. Cada domingo a las 23:59 se reparten <b>' + RACE.reduce((s, p) => s + p, 0) + ' puntos</b> entre los ' + RACE.length + ' primeros del hándicap global: <b>' + RACE.join('-') + '</b>. '
       + 'Arranca cuando ' + UMBRAL_N1 + ' jugadores tienen hándicap. La temporada es el año natural; la primera, 2027. '
-      + 'Desempate: hándicap → birdies en esas ' + VENTANA + ' actuaciones → nº de campos distintos; si persiste, se reparten los puntos de los puestos ocupados.' },
+      + 'Desempate: hándicap → nº de campos distintos en esas ' + VENTANA + ' actuaciones → birdies; si persiste, se reparten los puntos de los puestos ocupados.' },
     { t: tabTxt('liga'), d:
       'Los ' + diaPlural(SL_DIA) + ', en campo variable y sin obligación de venir. No cuenta el hándicap: puntúa el <b>puesto del día</b>, '
       + SL_PUNTOS.join('-') + ' del 1º al ' + SL_PUNTOS.length + 'º y ' + SL_PUNTOS_RESTO + ' punto a todos los demás. Se suman todas las jornadas, sin descartes. '
       + 'En un empate se reparten los puntos de los puestos ocupados. La temporada es el año natural (enero a diciembre). Mínimo 4 jugadores; con menos, esa quedada es Tour.' + ctxTxt('sl') },
     { t: tabTxt('tour'), d:
-      'Quedadas internas del grupo en cualquier campo, con un mínimo de 3 jugadores. No es un torneo oficial: es jugar entre nosotros y que cuente.' + ctxTxt('sptr') },
+      'Torneo oficial del club: ' + ((typeof CAL_MENSUALES !== 'undefined' && CAL_MENSUALES.find(e => e.src === 'sptr')) ? CAL_MENSUALES.find(e => e.src === 'sptr').n : 10) + ' pruebas en otros tantos campos distintos. Puntúa el <b>puesto del día</b> con el mismo baremo que la Liga ('
+      + SL_PUNTOS.join('-') + ' y ' + SL_PUNTOS_RESTO + ' punto a todos los demás) y gana quien más suma. En un empate se reparten los puntos de los puestos ocupados. Mínimo 3 jugadores.' + ctxTxt('sptr') },
     { t: tabTxt('matchplay'), d:
-      'Duelos uno contra uno, hoyo a hoyo: gana el hoyo quien hace menos golpes y gana el partido quien se lleva más hoyos. Formato de la competición por definir.' },
+      'Cuadro de eliminatorias entre los mejores del club (8, 16 o 32). Duelos uno contra uno, hoyo a hoyo: gana el hoyo quien hace menos golpes y gana el partido quien se lleva más hoyos. Quien pierde, fuera; solo queda uno.' },
     { t: tabTxt('copa'), d:
-      'El torneo individual del año. Todos salen el mismo día, a golpes (stroke play) y un único ganador. Si hay empate, desempate a muerte súbita.' + ctxTxt('copa') },
+      'El torneo individual del año, nuestro Augusta particular. Todos salen el mismo día, a golpes (stroke play) y un único ganador. Si hay empate, desempate a muerte súbita.' + ctxTxt('copa') },
     { t: ICONO_BOLA_ORO + ' ' + tabTxt('bolaoro'), d: (function(){
       const l = BOLA_CONTEXTOS.map(k => CTX_INFO[k].label);
       return 'El premio al jugador con más <b>birdies o mejor</b> de la temporada, sumando ' + l.slice(0,-1).join(', ') + ' y ' + l[l.length-1] + '. '
-        + 'En Interclubs cuentan individuales y parejas. <b>El Match Play no cuenta.</b> Solo suman los hoyos realmente jugados: los que se rellenan por abandono no. '
-        + 'Si hay empate, gana quien tenga más <b>hole in ones</b>; si siguen empatados, decide Capi.'; })() },
+        + '<b>No cuentan el Interclubs</b> (se juega en equipo) <b>ni el Match Play.</b> Solo suman los hoyos realmente jugados: los que se rellenan por abandono no. '
+        + 'Si hay empate, gana quien tenga más <b>hole in ones</b>; si siguen empatados, quien haya hecho birdie en <b>más campos distintos</b>; y si aún persiste, <b>muerte súbita</b>.'; })() },
     { t: tabTxt('interclubs'), d:
       'La competición por equipos de la Federació, donde THE IRONS representa al club. Se juega a golpes reales con individuales y parejas; no todos los resultados puntúan (el peor individual y la peor pareja se descartan). '
       + 'Solo juegan los jugadores de equipo. La alineación la propone el sistema según hándicap, rendimiento en ese campo, entrenamientos, asistencia y adaptabilidad.' + ctxTxt('ic') },
@@ -6242,7 +6253,8 @@ function renderHandicapGlobal(el){
 
   // Ordenar de mejor (hcp menor) a peor (hcp mayor); los sin hcp al final
   const conHcp = datos.filter(d => d.hcp !== null).sort((a,b) => a.hcp - b.hcp);
-  const sinHcp = datos.filter(d => d.hcp === null);
+  // Sin HCP: primero los que están más cerca de las VENTANA partidas.
+  const sinHcp = datos.filter(d => d.hcp === null).sort((a,b) => (b.n - a.n) || a.jugador.localeCompare(b.jugador, 'es'));
   const ordenados = conHcp.concat(sinHcp);
 
   const fmtHcp = (h) => {
@@ -6308,6 +6320,24 @@ function renderHandicapGlobal(el){
   h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 12px 16px">';
   ordenados.forEach((d) => {
     const tieneHcp = d.hcp !== null;
+    // Casilla "en camino" (01/11/2026): hasta tener VENTANA partidas no hay HCP;
+    // se enseña el progreso (n/VENTANA, barra y lo que falta) en el color del
+    // jugador, para animar a llegar. Con HCP, la casilla normal de abajo.
+    if(!tieneHcp){
+      const col = COLORS[d.jugador] || '#e5e7eb';
+      const n = Math.min(d.n || 0, VENTANA), faltan = VENTANA - n;
+      const seg = Array.from({length:VENTANA}, (_, i) =>
+        `<span style="flex:1;height:7px;border-radius:2px;background:${i < n ? col : '#e5e7eb'};${i < n ? 'box-shadow:inset 0 0 0 1px rgba(0,0,0,0.12)' : ''}"></span>`).join('');
+      const txt = n === 0 ? 'sin estrenar' : (faltan === 1 ? '¡falta 1!' : 'faltan ' + faltan);
+      h += `
+      <div onclick="${d.totalActs > 0 ? `window.__mostrarTarjetasGlobal('${d.jugador}')` : ''}" style="position:relative;background:#fff;border-radius:14px;padding:12px 10px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:108px;border:2px dashed ${col};${d.totalActs > 0 ? 'cursor:pointer' : ''}">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#1a1a1a;margin-bottom:4px">${d.jugador}</div>
+        <div style="font-family:'Fraunces',serif;font-weight:700;line-height:1;color:#1a1a1a"><span style="font-size:34px">${n}</span><span style="font-size:16px;color:#9ca3af">/${VENTANA}</span></div>
+        <div style="display:flex;gap:2px;width:100%;margin-top:8px">${seg}</div>
+        <div style="font-size:9px;color:#6b7280;margin-top:6px;letter-spacing:0.2px">${txt}</div>
+      </div>`;
+      return;
+    }
     // Fondo: color del jugador si tiene hcp completo; gris si sin hcp (n<10)
     const bg =
       !tieneHcp ? '#f3f4f6' :
@@ -9611,9 +9641,9 @@ function renderRanking(el){
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// TOUR — quedadas internas del equipo (mínimo 3 jugadores)
+// TOUR — torneo oficial del club, por puntos (mínimo 3 jugadores)
 // ═══════════════════════════════════════════════════════════════════════
-// Quedada entre nosotros, con src 'sptr'. Multi-campo: el campo lo define
+// Una prueba por campo, con src 'sptr'. Multi-campo: el campo lo define
 // cada jornada (jr.campo).
 // ═════════════════════════════════════════════════════════════════
 // LIGA — liga semanal (día SL_DIA), por PUNTOS.
@@ -9648,20 +9678,35 @@ const LIGA_DATA = [
 // filtrando por contexto SL.
 // ────────────────────────────────────────────────────────────────
 function renderLiga(el){
-  const { jornadas, tabla } = _clasificacionSL();
-  const ci = CTX_INFO.sl;
+  _renderClasifPuntos(el, 'sl', {
+    titulo:'Liga', filtro:'SL',
+    sub: n => 'Los ' + diaPlural(SL_DIA) + ' · equipo y socios · ' + n + ' jornada' + (n===1?'':'s') });
+}
+// Tour: torneo oficial del club, N pruebas en N campos distintos (las marca
+// CAL_MENSUALES), mismo baremo de puntos que la Liga.
+function renderTour(el){
+  const cal = (typeof CAL_MENSUALES !== 'undefined') ? CAL_MENSUALES.find(e => e.src === 'sptr') : null;
+  const nT = cal ? cal.n : null;
+  _renderClasifPuntos(el, 'sptr', {
+    titulo:'Tour', filtro:'Tour',
+    sub: n => (nT ? nT + ' pruebas en ' + nT + ' campos distintos · ' : '') + n + ' disputada' + (n===1?'':'s') });
+}
+function _renderClasifPuntos(el, src, cfg){
+  const { jornadas, tabla } = _clasificacionPuntos(src);
+  const ci = CTX_INFO[src];
+  const fP = p => (Math.round(p * 100) / 100).toLocaleString('es-ES');
   const fD = d => d === null || d === undefined ? '—' : (d === 0 ? 'PAR' : (d > 0 ? '+' : '−') + Math.abs(d));
   const fM = m => m === null || m === undefined ? '—' : (Math.round(m*10)/10 === 0 ? 'PAR' : (m > 0 ? '+' : '−') + Math.abs(m).toFixed(1));
 
   let h = '<div style="max-width:900px;margin:0 auto">';
   h += '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px;flex-wrap:wrap">';
-  h += '<span style="font-size:17px;font-weight:700;color:' + ci.col + '">' + ci.icon + ' Liga</span>';
-  h += '<span style="font-size:11px;color:#6b7280">Los ' + diaPlural(SL_DIA) + ' · equipo y socios · ' + jornadas.length + ' jornada' + (jornadas.length===1?'':'s') + '</span>';
+  h += '<span style="font-size:17px;font-weight:700;color:' + ci.col + '">' + ci.icon + ' ' + cfg.titulo + '</span>';
+  h += '<span style="font-size:11px;color:#6b7280">' + cfg.sub(jornadas.length) + '</span>';
   h += '</div>';
   h += '<div style="font-size:11px;color:#9ca3af;margin-bottom:14px">Puntos por jornada: '
      + SL_PUNTOS.map((p,i) => '<b>' + (i+1) + 'º</b> ' + p).join(' · ')
      + ' · <b>' + (SL_PUNTOS.length+1) + 'º y siguientes</b> ' + SL_PUNTOS_RESTO
-     + '. Empate = misma posición y mismos puntos. Los resultados hoyo a hoyo, en la Tabla del Global filtrando por SL.</div>';
+     + '. Empate = posición compartida y se reparten los puntos de los puestos ocupados. Los resultados hoyo a hoyo, en la Tabla del Global filtrando por ' + cfg.filtro + '.</div>';
 
   if(!jornadas.length){
     h += '<div style="font-size:12.5px;color:#9ca3af;background:#fafafa;border:1px solid #f0f0f0;border-radius:10px;padding:18px">'
@@ -9688,7 +9733,7 @@ function renderLiga(el){
        + '<td style="padding:5px 8px;text-align:center;font-weight:700;color:' + (lider ? ci.col : '#9ca3af') + '">' + (i+1) + '</td>'
        + '<td style="padding:5px 10px"><span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:' + bg + ';margin-right:7px"></span>'
        + '<b>' + g.jugador + '</b></td>'
-       + '<td style="padding:5px 8px;text-align:center;font-weight:700;font-size:14px;color:' + ci.col + '">' + g.puntos + '</td>'
+       + '<td style="padding:5px 8px;text-align:center;font-weight:700;font-size:14px;color:' + ci.col + '">' + fP(g.puntos) + '</td>'
        + '<td style="padding:5px 8px;text-align:center;color:#6b7280">' + g.jugadas + '</td>'
        + '<td style="padding:5px 8px;text-align:center;color:#6b7280">' + (g.victorias || '—') + '</td>'
        + '<td style="padding:5px 8px;text-align:center;font-family:monospace">' + fM(g.media) + '</td>'
@@ -9713,7 +9758,7 @@ function renderLiga(el){
          + '<td style="padding:4px 10px">' + r.jugador + '</td>'
          + '<td style="padding:4px 8px;text-align:center;font-family:monospace">' + r.total + '</td>'
          + '<td style="padding:4px 8px;text-align:center;font-family:monospace;color:#6b7280">' + fD(r.delta) + '</td>'
-         + '<td style="padding:4px 10px;text-align:right;font-weight:700;color:' + ci.col + ';width:60px">' + r.puntos + ' pt' + (r.puntos===1?'':'s') + '</td>'
+         + '<td style="padding:4px 10px;text-align:right;font-weight:700;color:' + ci.col + ';width:60px">' + fP(r.puntos) + ' pt' + (r.puntos===1?'':'s') + '</td>'
          + '</tr>';
     });
     h += '</tbody></table></div>';
@@ -9723,13 +9768,20 @@ function renderLiga(el){
   el.innerHTML = h;
 }
 
-// Clasificación de la Liga: para cada jornada se ordena por total (con
-// el cap del contexto ya aplicado) y se reparten puntos por posición. Los
-// empatados comparten posición y se llevan los mismos puntos; la siguiente
-// posición se salta tantos puestos como empatados hubo.
-function _clasificacionSL(){
+// Clasificación por puntos de Liga (src 'sl') y Tour (src 'sptr'), mismo
+// baremo (SL_PUNTOS): para cada jornada se ordena por total (con el cap del
+// contexto ya aplicado) y se reparten puntos por posición. Los empatados
+// comparten posición y se reparten a partes iguales los puntos de los puestos
+// que ocupan (dos decimales); el siguiente hereda su puesto real.
+function _puntosEmpate(pos, empatados){
+  let suma = 0;
+  for(let p = pos; p < pos + empatados; p++) suma += puntosSL(p);
+  return Math.round(suma / empatados * 100) / 100;
+}
+function _clasificacionSL(){ return _clasificacionPuntos('sl'); }
+function _clasificacionPuntos(src){
   const acts = (typeof _recopilarActuacionesGlobal === 'function' ? _recopilarActuacionesGlobal() : [])
-    .filter(a => a.src === 'sl' && !a.abandono);
+    .filter(a => a.src === src && !a.abandono);
   const porJornada = {};
   acts.forEach(a => { (porJornada[a.j] = porJornada[a.j] || []).push(a); });
 
@@ -9740,7 +9792,7 @@ function _clasificacionSL(){
       vistos++;
       if(deltaPrev === null || a.delta !== deltaPrev){ pos = vistos; deltaPrev = a.delta; }
       return { jugador:a.jugador, delta:a.delta, total:a.delta + PAR_CAMPO,
-               pos, puntos:puntosSL(pos), fecha:a.fecha, campo:a.campo };
+               pos, puntos:_puntosEmpate(pos, lista.filter(o => o.delta === a.delta).length), fecha:a.fecha, campo:a.campo };
     });
     return { j, fecha:filas.length?filas[0].fecha:null, campo:filas.length?filas[0].campo:null, filas };
   });
@@ -9748,7 +9800,7 @@ function _clasificacionSL(){
   const general = {};
   jornadas.forEach(jr => jr.filas.forEach(f => {
     const g = general[f.jugador] = general[f.jugador] || { jugador:f.jugador, puntos:0, jugadas:0, victorias:0, mejor:null, sumaDelta:0 };
-    g.puntos += f.puntos;
+    g.puntos = Math.round((g.puntos + f.puntos) * 100) / 100;
     g.jugadas++;
     if(f.pos === 1) g.victorias++;
     g.sumaDelta += f.delta;
@@ -9776,11 +9828,6 @@ const MATCHPLAY_DATA = [];
 
 const COPA_DATA = [];
 
-function renderTour(el){ _renderListaTorneos(el, TOUR_DATA, {
-    icono:'🔥', vacioTitulo:'Aún no hay Tours',
-    vacioTexto:'Cuando Capi alimente el primer Tour, aparecerá aquí.',
-    eyebrow:'', eyebrowPlano:'',
-    pie:'Tour · quedadas internas' }); }
 
 // Render de la lista del Tour: misma estructura de datos,
 // solo cambian los rótulos. cfg trae icono, textos y pie.
