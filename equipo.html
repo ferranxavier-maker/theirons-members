@@ -9149,7 +9149,7 @@ function renderTarjeta(el){
         h+='<td><button type="button" class="'+cls+'" data-j="'+jug+'" data-h="'+i+'">'
           +(v===null?'':String(v))+'</button></td>';
       }
-      h+='<td class="tj-sum">'+fmtDelta(delta(jug))+'</td></tr>';
+      const tot=suma(jug); h+='<td class="tj-sum">'+(tot===null?'—':tot)+'</td></tr>';   // al final: golpes totales (el delta va al principio)
     });
     return h;
   }
