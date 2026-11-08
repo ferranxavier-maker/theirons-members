@@ -5849,10 +5849,28 @@ function _htmlPestanasInstrucciones(){
 
 // Meses que recorre el Calendario (mes: 1-12): del primero al último, con
 // flechas para pasar de uno a otro. Se abre en el primero. Todo lo demás se calcula.
-const CAL_MES     = { anio:2027, mes:1 };
+// El primero es el mes de la primera partida jugada (sale de las actuaciones);
+// si aún no hay ninguna, CAL_MES_SIN_PARTIDAS.
+const CAL_MES_SIN_PARTIDAS = { anio:2027, mes:1 };
 const CAL_MES_FIN = { anio:2027, mes:12 };
+// Partidas ya jugadas, de la fuente única de actuaciones: una por día y
+// competición, con el campo como rótulo. [{ iso:'AAAA-MM-DD', src, txt }]
+function _calJugadas(){
+  const vistas = new Map();
+  _recopilarActuacionesGlobal(null).forEach(a => {
+    if(!a.fecha) return;
+    const iso = a.fecha.getFullYear() + '-' + String(a.fecha.getMonth()+1).padStart(2,'0') + '-' + String(a.fecha.getDate()).padStart(2,'0');
+    const k = iso + '|' + a.src;
+    if(!vistas.has(k)) vistas.set(k, { iso, src:a.src, txt:a.campo || '' });
+  });
+  return [...vistas.values()];
+}
+function _calMesInicio(){
+  const f = _calJugadas().map(x => x.iso).sort()[0];
+  return f ? { anio:+f.slice(0,4), mes:+f.slice(5,7) } : CAL_MES_SIN_PARTIDAS;
+}
 const _calIndice = m => m.anio * 12 + (m.mes - 1);
-let _calOffset = 0;          // meses desde CAL_MES que se están viendo
+let _calOffset = 0;          // meses desde el primero que se están viendo
 const CAL_DIAS_SEMANA = ['L','M','X','J','V','S','D'];
 // Separación (px) entre el título del mes, la fila de días de la semana y los números.
 const CAL_ESPACIO = 30;
@@ -5876,7 +5894,8 @@ const CAL_SEMANALES = [
 function _calFechasSemanal(e){
   const out = new Set();
   const iso = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-  const [y0, m0, d0] = (e.desde || (CAL_MES.anio + '-' + String(CAL_MES.mes).padStart(2,'0') + '-01')).split('-').map(Number);
+  const _m0 = _calMesInicio();
+  const [y0, m0, d0] = (e.desde || (_m0.anio + '-' + String(_m0.mes).padStart(2,'0') + '-01')).split('-').map(Number);
   const f = new Date(y0, m0-1, d0);
   while(f.getDay() !== e.dia) f.setDate(f.getDate() + 1);
   for(let guard = 0; guard < 600; guard++, f.setDate(f.getDate() + 7)){
@@ -5937,6 +5956,27 @@ function _calFechasMensual(e){
 // Citas sueltas en una fecha concreta. `txt` (opcional) = rótulo corto bajo el icono.
 // Sin `src` (no es una competición) se indica el `icon` directamente.
 const CAL_PUNTUALES = [
+  // Pretemporada 2026: entrenos libres y Ranking de parejas programados.
+  // Lo ya jugado de esa competición ese día tapa lo programado.
+  { fecha:'2026-10-28', src:'ent', txt:'ROC 3' },
+  { fecha:'2026-11-01', src:'rkg', txt:'Parejas · Teià' },
+  { fecha:'2026-11-05', src:'ent', txt:'Can Rafel' },
+  { fecha:'2026-11-08', src:'ent', txt:'HCP1' },
+  { fecha:'2026-11-11', src:'ent', txt:'Badalona' },
+  { fecha:'2026-11-15', src:'ent', txt:'Mas Gurumbau' },
+  { fecha:'2026-11-19', src:'ent', txt:'Can Mascaró' },
+  { fecha:'2026-11-22', src:'rkg', txt:'Parejas · Costa Daurada' },
+  { fecha:'2026-11-25', src:'ent', txt:'ROC 3' },
+  { fecha:'2026-11-29', src:'ent', txt:'La Garriga' },
+  { fecha:'2026-12-03', src:'ent', txt:'Can Rafel' },
+  { fecha:'2026-12-06', src:'ent', txt:'Montseny' },
+  { fecha:'2026-12-09', src:'ent', txt:'Badalona' },
+  { fecha:'2026-12-13', src:'rkg', txt:'Parejas · Gualta' },
+  { fecha:'2026-12-17', src:'ent', txt:'Can Mascaró' },
+  { fecha:'2026-12-20', src:'ent', txt:'Portal del Roc' },
+  { fecha:'2026-12-23', src:'ent', txt:'ROC 3' },
+  { fecha:'2026-12-27', src:'ent', txt:'Sant Cebrià' },
+  { fecha:'2026-12-31', src:'ent', txt:'Can Rafel' },
   { fecha:'2027-11-13', src:'mp' },
   { fecha:'2027-11-14', src:'mp' },
   { fecha:'2027-11-21', src:'mp', txt:'Final' },
@@ -5957,9 +5997,11 @@ const CAL_SIN_JORNADA = {
   sl: [],
 };
 function renderCalendario(el){
-  const total = _calIndice(CAL_MES_FIN) - _calIndice(CAL_MES);
+  const _calInicio = _calMesInicio();
+  const _calHechas = _calJugadas();
+  const total = _calIndice(CAL_MES_FIN) - _calIndice(_calInicio);
   _calOffset = Math.max(0, Math.min(total, _calOffset));
-  const idx = _calIndice(CAL_MES) + _calOffset;
+  const idx = _calIndice(_calInicio) + _calOffset;
   const anio = Math.floor(idx / 12), mes = idx % 12 + 1;
   // Flechas: anterior / siguiente, apagadas en los extremos.
   window.__calMover = d => { _calOffset += d; renderCalendario(el); };
@@ -6001,10 +6043,16 @@ function renderCalendario(el){
     const iso = anio + '-' + String(mes).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     h += '<div style="min-height:56px;border:1px solid ' + (esHoy?'#374151':'#e5e7eb') + ';border-radius:6px;padding:4px 5px;background:' + (parado ? CAL_RAYADO : (finde?'#f9fafb':'#fff')) + '">'
        + '<div style="font-size:11px;font-weight:' + (esHoy?'700':'500') + ';color:' + (finde?'#9ca3af':'#374151') + '">' + d + '</div>'
-       + _calSemanales.filter(x => !parado && x.fechas.has(iso))
-           .map(x => ({ src:x.src }))
-           .concat(parado ? [] : _calMensuales.filter(x => x.fechas.has(iso)).map(x => ({ src:x.src, txt:x.txt(iso) })))
-           .concat(parado ? [] : CAL_PUNTUALES.filter(x => x.fecha === iso))
+       + (() => {
+           // Jugadas (siempre se ven); lo programado de esa misma competición ese día no se repite.
+           const hechas = _calHechas.filter(x => x.iso === iso);
+           const programadas = _calSemanales.filter(x => !parado && x.fechas.has(iso))
+             .map(x => ({ src:x.src }))
+             .concat(parado ? [] : _calMensuales.filter(x => x.fechas.has(iso)).map(x => ({ src:x.src, txt:x.txt(iso) })))
+             .concat(parado ? [] : CAL_PUNTUALES.filter(x => x.fecha === iso))
+             .filter(x => !x.src || !hechas.some(j => j.src === x.src));
+           return hechas.concat(programadas);
+         })()
            .map(ev => '<div style="font-size:18px;line-height:1;text-align:center;margin-top:6px">' + (ev.icon || _calIcono(ev.src))
                 + (ev.txt ? '<div style="font-size:8px;font-weight:700;letter-spacing:0;line-height:1.15;color:#6b7280;margin:2px -4px 0;text-transform:uppercase">' + ev.txt + '</div>' : '')
                 + '</div>').join('')
