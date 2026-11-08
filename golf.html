@@ -59,6 +59,7 @@ select,input{font-size:12px;padding:4px 6px;border:1px solid #d1d5db;border-radi
     <div class="tab" data-tab="tabla">📋 Tabla</div>
     <div class="tab" data-tab="records">🏆 Records</div>
     <div class="tab" data-tab="campos">🗺️ Campos</div>
+    <div class="tab" data-tab="executive">⛳ Executive</div>
   </div>
 </div>
 <div id="tab-tarjeta" class="content"></div>
@@ -67,6 +68,7 @@ select,input{font-size:12px;padding:4px 6px;border:1px solid #d1d5db;border-radi
 <div id="tab-tabla" class="content"></div>
 <div id="tab-records" class="content"></div>
 <div id="tab-campos" class="content"></div>
+<div id="tab-executive" class="content"></div>
 
 <script>
 // ============================================================
@@ -157,6 +159,14 @@ const WHS = {
           12:[4,0],13:[4,0],14:[4,0],15:[5,0],16:[5,0],17:[6,0],18:[6,0],19:[7,0],20:[8,0]},
   SOFT_CAP: 3, HARD_CAP: 5
 };
+// ============================================================
+// EXECUTIVE: campo especial (9 hoyos, par muy bajo), con hándicap propio
+// ============================================================
+// No entra en el WHS ni en Hándicap, Stats, Tabla ni Records: va en su pestaña.
+// Unidad = vuelta de 9 hoyos (si se juegan 18, cuentan como dos vueltas).
+// HCP Executive = media de golpes sobre el par de las últimas VENTANA vueltas,
+// sin descartes; sin HCP hasta llegar a VENTANA. Tope de hoyo: par + 3.
+const EXEC = { CAMPO:'executive', HOYOS_VUELTA:9, VENTANA:10 };
 const r1 = x => Math.round(x*10)/10;
 const campoPorId = id => GOLF_CAMPOS.find(c=>c.id===id);
 const parCampo = c => c.hoyos.reduce((s,h)=>s+h.par,0);
@@ -186,6 +196,7 @@ function procesar(){
   const acts = [];
   rondas.forEach((r,ri)=>{
     const c = campoPorId(r.campo); if(!c) return;
+    if(c.id===EXEC.CAMPO) return;   // el Executive va aparte (pestaña Executive)
     const bar = r.barras || BARRAS_DEFECTO;
     const tee = c.tees ? c.tees[bar] : null; const par = parCampo(c);
     // Sin CR/slope o sin hándicap de hoyo la vuelta se registra pero no cuenta para el hándicap.
@@ -236,6 +247,35 @@ function procesar(){
 // UI
 // ============================================================
 const {acts:ACTS, est:EST} = procesar();
+
+// Vueltas de 9 del Executive en orden cronológico, con el HCP Executive de
+// cada jugador antes y después de cada vuelta.
+function procesarExecutive(){
+  const c = campoPorId(EXEC.CAMPO); if(!c) return {vueltas:[], est:{}};
+  const hv = c.hoyos.slice(0, EXEC.HOYOS_VUELTA);
+  const parV = hv.reduce((s,h)=>s+h.par,0);
+  const rondas = GOLF_RONDAS.map((r,i)=>({...r,_i:i})).filter(r=>r.campo===EXEC.CAMPO)
+    .sort((a,b)=>a.fecha.localeCompare(b.fecha)||a._i-b._i);
+  const est = {}, vueltas = [];
+  rondas.forEach(r=>{
+    Object.entries(r.jugadores).forEach(([ap,g0])=>{
+      for(let k=0; k*EXEC.HOYOS_VUELTA < g0.length; k++){
+        const trozo = g0.slice(k*EXEC.HOYOS_VUELTA, (k+1)*EXEC.HOYOS_VUELTA);
+        if(trozo.length < EXEC.HOYOS_VUELTA || trozo.some(v=>v==null)) continue;
+        const g = trozo.map((v,h)=>Math.min(v, hv[h].par+WHS.TOPE_JUEGO));
+        const bruto = g.reduce((s,x)=>s+x,0);
+        const e = est[ap] || (est[ap]={dpars:[], hcp:null});
+        const hcpAntes = e.hcp;
+        e.dpars.push(bruto-parV);
+        const ult = e.dpars.slice(-EXEC.VENTANA);
+        e.hcp = e.dpars.length>=EXEC.VENTANA ? r1(ult.reduce((s,x)=>s+x,0)/ult.length) : null;
+        vueltas.push({fecha:r.fecha, apodo:ap, n:k+1, golpes:g, hoyos:hv, par:parV, bruto, dpar:bruto-parV, hcpAntes, hcpDespues:e.hcp});
+      }
+    });
+  });
+  return {vueltas, est, parV, hv};
+}
+const EXEC_DATOS = procesarExecutive();
 const fotoJ = ap => { const j=jugador(ap);
   return j.foto ? `<img src="${j.foto}" alt="">` : `<span class="ini" style="background:${j.color||'#eee'}">${ap[0]}</span>`; };
 const jugHTML = ap => `<span class="jug">${fotoJ(ap)}<span>${ap}</span></span>`;
@@ -329,19 +369,20 @@ function renderRecords(el){
 function renderCampos(el){
   let h = `<h2>Campos</h2>`;
   GOLF_CAMPOS.forEach(c=>{
-    const ac = ACTS.filter(a=>a.campo===c);
-    h += `<h3>${c.nombre} · par ${parCampo(c)}</h3><p class="nota">${c.recorrido}${c.tees?' · RFEG, caballeros. Barras por defecto: '+BARRAS_NOMBRE[BARRAS_DEFECTO]+'.':'. Las vueltas aquí se registran pero no cuentan para el hándicap.'}</p>`;
+    const esExec = c.id===EXEC.CAMPO;
+    const ac = esExec ? EXEC_DATOS.vueltas : ACTS.filter(a=>a.campo===c);
+    h += `<h3>${c.nombre} · par ${parCampo(c)}</h3><p class="nota">${c.recorrido}${c.tees?' · RFEG, caballeros. Barras por defecto: '+BARRAS_NOMBRE[BARRAS_DEFECTO]+'.':(esExec?'. Tiene su propio hándicap: pestaña Executive.':'. Las vueltas aquí se registran pero no cuentan para el hándicap.')}</p>`;
     if(c.tees){ h += `<div class="wrap"><table><tr><th class="izq">Barras</th>${BARRAS.map(b=>`<th>${BARRAS_NOMBRE[b]}</th>`).join('')}</tr>`;
     h += `<tr><td class="izq">CR</td>${BARRAS.map(b=>`<td class="num">${fmt1(c.tees[b].cr)}</td>`).join('')}</tr>`;
     h += `<tr><td class="izq">Slope</td>${BARRAS.map(b=>`<td class="num">${c.tees[b].slope}</td>`).join('')}</tr>`;
     h += `<tr><td class="izq">Metros</td>${BARRAS.map(b=>`<td class="num">${c.hoyos.reduce((s,x)=>s+x.m[b],0)}</td>`).join('')}</tr></table></div>`; }
-    const media = i => { const v=ac.map(a=>a.golpes[i]); return v.length? v.reduce((s,x)=>s+x,0)/v.length : null; };
+    const media = i => { const v=ac.map(a=>a.golpes[esExec ? i%EXEC.HOYOS_VUELTA : i]).filter(x=>x!=null); return v.length? v.reduce((s,x)=>s+x,0)/v.length : null; };
     h += `<div class="wrap" style="margin-top:8px"><table><tr><th class="izq">Hoyo</th>${c.hoyos.map((_,i)=>`<th>${i+1}</th>`).join('')}</tr>`;
     h += `<tr><td class="izq">Par</td>${c.hoyos.map(x=>`<td>${x.par}</td>`).join('')}</tr>`;
     h += `<tr><td class="izq">Hcp</td>${c.hoyos.map(x=>`<td class="dim">${x.hcp??'—'}</td>`).join('')}</tr>`;
     h += `<tr><td class="izq">${BARRAS_NOMBRE[BARRAS_DEFECTO]} (m)</td>${c.hoyos.map(x=>`<td class="num">${x.m?x.m[BARRAS_DEFECTO]:'—'}</td>`).join('')}</tr>`;
     h += `<tr><td class="izq">Media equipo</td>${c.hoyos.map((x,i)=>{const m=media(i); return m==null?'<td class="dim">—</td>':`<td class="num ${claseHoyo(Math.round(m-x.par))}">${m.toFixed(2).replace('.',',')}</td>`;}).join('')}</tr></table></div>`;
-    h += `<p class="nota">${ac.length} actuaciones en este campo.</p>`;
+    h += `<p class="nota">${ac.length} ${esExec?'vueltas de '+EXEC.HOYOS_VUELTA+' hoyos':'actuaciones'} en este campo.</p>`;
   });
   el.innerHTML = h;
 }
@@ -366,7 +407,9 @@ function renderTarjeta(el){
   const parH = h => campo().hoyos[h].par;
   const topeH = h => parH(h) + WHS.TOPE_JUEGO;
   const suma = jug => { let s=0,n=0; G[jug].forEach(v=>{ if(v!==null){s+=v;n++;} }); return n? s : null; };
-  const completo = jug => G[jug].every(v=>v!==null);
+  // En el Executive vale una sola vuelta de 9 (hoyos 1-9 llenos y 10-18 vacíos).
+  const completo = jug => G[jug].every(v=>v!==null)
+    || (campo().id===EXEC.CAMPO && G[jug].slice(0,EXEC.HOYOS_VUELTA).every(v=>v!==null) && G[jug].slice(EXEC.HOYOS_VUELTA).every(v=>v===null));
   const delta = jug => { let d=0,n=0; G[jug].forEach((v,h)=>{ if(v!==null){ d+=v-parH(h); n++; } }); return n? d : null; };
   const fmtDelta = d => d===null ? '—' : (d>0 ? '+'+d : String(d));
 
@@ -632,7 +675,7 @@ function renderTarjeta(el){
     const fecha = iso ? iso.slice(8,10)+'/'+iso.slice(5,7)+'/'+iso.slice(0,4) : '';
     const orden=[...sel].sort((a,b)=>suma(a)-suma(b));
     const L=['=== TARJETA GOLF INICIO ===','fecha='+fecha,'campo='+c.id,'barras='+$('#tjBarras').value,''];
-    orden.forEach(j=>L.push('jugador='+j+' hoyos='+G[j].join(' ')+' total='+suma(j)));
+    orden.forEach(j=>L.push('jugador='+j+' hoyos='+G[j].filter(v=>v!==null).join(' ')+' total='+suma(j)));
     L.push('=== TARJETA GOLF FIN ===');
     out.value=L.join('\n');
     msg.className='tj-msg ok'; msg.textContent='Tarjeta generada.';
@@ -644,7 +687,57 @@ function renderTarjeta(el){
 }
 
 
-const RENDER={tarjeta:renderTarjeta,handicap:renderHandicap,stats:renderStats,tabla:renderTabla,records:renderRecords,campos:renderCampos};
+function renderExecutive(el){
+  const {vueltas, est, parV, hv} = EXEC_DATOS;
+  let h = `<h2>Executive</h2><p class="nota">Campo especial de ${EXEC.HOYOS_VUELTA} hoyos (par ${parV}), con hándicap propio que no se mezcla con el de los campos de 18. Cada vuelta de ${EXEC.HOYOS_VUELTA} hoyos cuenta por separado: si se juegan 18, son dos vueltas. HCP Executive = media de los golpes sobre el par de las últimas ${EXEC.VENTANA} vueltas, sin descartes; no hay HCP hasta completar ${EXEC.VENTANA}. Se juega a triple bogey: cada hoyo cuenta como máximo par + ${WHS.TOPE_JUEGO}.</p>`;
+  const sinVueltas = !vueltas.length;
+  const pie = v => `${fmtFecha(v.fecha)}${v.n>1?' · '+v.n+'ª vuelta':''}`;
+  // Subpestañas: Hándicap · Tabla · Records
+  const SUB = [['hcp','📉 Hándicap'],['tabla','📋 Tabla'],['records','🏆 Records']];
+  h += `<div class="tabs" style="border-bottom:1px solid #e5e7eb;margin-bottom:6px">${SUB.map(([k,t],i)=>`<div class="tab exsub${i?'':' active'}" data-sub="${k}">${t}</div>`).join('')}</div>`;
+  if(sinVueltas){
+    h += SUB.map(([k],i)=>`<div class="exsec" data-sec="${k}"${i?' style="display:none"':''}>${vacio('Aún no hay vueltas en el Executive.')}</div>`).join('');
+  } else {
+  h += `<div class="exsec" data-sec="hcp">`;
+  // Hándicap Executive
+  const filas = EQUIPO.map(j=>{ const mis=vueltas.filter(v=>v.apodo===j.apodo); const e=est[j.apodo];
+    return {ap:j.apodo, hcp:e?e.hcp:null, n:mis.length, ult:mis.length?mis[mis.length-1]:null}; }).filter(f=>f.n);
+  const con = filas.filter(f=>f.hcp!=null).sort((a,b)=>a.hcp-b.hcp);
+  const sin = filas.filter(f=>f.hcp==null).sort((a,b)=>b.n-a.n||a.ap.localeCompare(b.ap));
+  h += `<h3>Hándicap Executive</h3><div class="wrap"><table><tr><th>#</th><th class="izq">Jugador</th><th>HCP</th><th>Vueltas</th><th>Última</th><th>Fecha</th></tr>`;
+  let pos=0, prev=null;
+  con.forEach((f,i)=>{ if(f.hcp!==prev){ pos=i+1; prev=f.hcp; }
+    h+=`<tr><td>${pos}</td><td class="izq">${jugHTML(f.ap)}</td><td class="big num">${fmt1(f.hcp)}</td><td>${f.n}</td><td class="num">${f.ult.bruto} (${fmtD(f.ult.dpar)})</td><td>${pie(f.ult)}</td></tr>`; });
+  sin.forEach(f=>{ h+=`<tr class="dim"><td>—</td><td class="izq">${jugHTML(f.ap)}</td><td>faltan ${EXEC.VENTANA-f.n}</td><td>${f.n}</td><td class="num">${f.ult.bruto} (${fmtD(f.ult.dpar)})</td><td>${pie(f.ult)}</td></tr>`; });
+  h += `</table></div></div>`;
+  // Tabla de vueltas
+  h += `<div class="exsec" data-sec="tabla" style="display:none"><h3>Tabla de vueltas</h3><div class="wrap"><table><tr><th>Fecha</th><th>Vuelta</th><th class="izq">Jugador</th>${hv.map((_,i)=>`<th>${i+1}</th>`).join('')}<th>Bruto</th><th>+/- par</th><th>HCP después</th></tr>`;
+  vueltas.slice().reverse().forEach(v=>{
+    h+=`<tr><td>${fmtFecha(v.fecha)}</td><td>${v.n}ª</td><td class="izq">${jugHTML(v.apodo)}</td>${v.golpes.map((g,i)=>`<td class="${claseHoyo(g-hv[i].par)}">${g}</td>`).join('')}<td class="big num">${v.bruto}</td><td class="num">${fmtD(v.dpar)}</td><td class="num">${fmt1(v.hcpDespues)}</td></tr>`; });
+  h += `</table></div></div>`;
+  // Records
+  h += `<div class="exsec" data-sec="records" style="display:none">`;
+  const datos = vueltas.map(v=>{ let bi=0, po=0;
+    v.golpes.forEach((g,i)=>{ const d=g-hv[i].par; if(d<=-1) bi++; if(d<=0) po++; }); return {v, bi, po}; });
+  const mejores = EQUIPO.map(j=>{ const mis=datos.filter(x=>x.v.apodo===j.apodo); if(!mis.length) return null;
+    const m=Math.min(...mis.map(x=>x.v.bruto)); return {ap:j.apodo, m, vs:mis.filter(x=>x.v.bruto===m)}; }).filter(Boolean).sort((a,b)=>a.m-b.m);
+  h += `<h3>Mejor vuelta de cada uno</h3><div class="wrap"><table><tr><th>#</th><th class="izq">Jugador</th><th>Bruto</th><th>+/- par</th><th class="izq">Cuándo</th></tr>`;
+  pos=0; prev=null;
+  mejores.forEach((f,i)=>{ if(f.m!==prev){ pos=i+1; prev=f.m; }
+    h+=`<tr><td>${pos}</td><td class="izq">${jugHTML(f.ap)}</td><td class="big num">${f.m}</td><td class="num">${fmtD(f.m-parV)}</td><td class="izq">${f.vs.map(x=>pie(x.v)).join('<br>')}</td></tr>`; });
+  h += `</table></div>`;
+  const record = k => { const v=Math.max(...datos.map(x=>x[k])); return v>0 ? {v, quien:datos.filter(x=>x[k]===v)} : null; };
+  const card = (t,r) => `<div class="card"><div class="t">${t}</div>${r?`<div class="v">${r.v}</div>${r.quien.map(x=>`<div class="s">${x.v.apodo} · ${pie(x.v)}</div>`).join('')}`:'<div class="s">—</div>'}</div>`;
+  h += `<h3>Récords</h3><div class="cards">` + card('Más birdies en una vuelta', record('bi')) + card('Más pares o mejor en una vuelta', record('po')) + `</div></div>`;
+  }
+  el.innerHTML = h;
+  el.querySelectorAll('.exsub').forEach(b=>b.addEventListener('click',()=>{
+    el.querySelectorAll('.exsub').forEach(x=>x.classList.toggle('active',x===b));
+    el.querySelectorAll('.exsec').forEach(x=>x.style.display = x.dataset.sec===b.dataset.sub ? '' : 'none');
+  }));
+}
+
+const RENDER={tarjeta:renderTarjeta,handicap:renderHandicap,stats:renderStats,tabla:renderTabla,records:renderRecords,campos:renderCampos,executive:renderExecutive};
 const hecho={};
 function showTab(t){
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
