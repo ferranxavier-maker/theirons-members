@@ -524,7 +524,9 @@ input,select{font-size:11px;padding:3px 6px;border:1px solid #d1d5db;border-radi
   text-transform: uppercase;
 }
 
-#tab-entrenamiento .table-wrap, #tab-tour .table-wrap { overflow-x: visible; }
+/* Scroll horizontal en móvil con la columna del jugador fija a la izquierda */
+#tab-entrenamiento .table-wrap, #tab-tour .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#tab-entrenamiento table.scorecard thead th.col-jug, #tab-tour table.scorecard thead th.col-jug { position: sticky; left: 0; z-index: 2; }
 
 #tab-entrenamiento table.scorecard, #tab-tour table.scorecard {
   width: 100%;
