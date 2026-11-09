@@ -10040,7 +10040,7 @@ function _renderListaTorneos(el, DATOS, cfg){
         {j:1, fecha:'22/10/2026', campo:'Can Mascaró', recorrido:'FCPP'},
         {j:2, fecha:'28/10/2026', campo:'ROC 3',       recorrido:'FCPP'},
         {j:3, fecha:'05/11/2026', campo:'Can Rafel',   recorrido:'FCPP'},
-        {j:4, fecha:'08/11/2026', campo:'Teià',        recorrido:'FCPP'},
+        {j:4, fecha:'08/11/2026', campo:'Vallromanes', recorrido:'FCPP'},
       ],
       hm: {
         "1_Cabra":     [4,3,4,3,3,3,3,4,4,2,3,3,3,3,2,3,3,4],
@@ -11864,5 +11864,62 @@ showTab('handicapglobal');
 
 
 
+<script>
+// ── Tablas en el móvil: scroll horizontal con la columna del nombre fija ──
+// Para cualquier tabla de la app: si no cabe, se le pone un contenedor con
+// scroll horizontal; la columna clave (Jugador / Nickname / Campo / Contexto / H,
+// o la primera) se queda fija a la izquierda al deslizar. Se aplica sola a
+// cada tabla que se pinte, en cualquier pestaña.
+(function(){
+  const CLAVES = [/^jugador/i, /^nickname/i, /^campo/i, /^contexto/i, /^h$/i];
+  const EXCLUIR = '#tab-tarjeta, #tab-calendario';
+  const fondo = el => {
+    for(let a = el; a && a.nodeType === 1; a = a.parentElement){
+      const c = getComputedStyle(a).backgroundColor;
+      if(c && c !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(c)) return c;
+    }
+    return '#fff';
+  };
+  // Celdas de una fila con su columna de inicio (respetando colspan).
+  const celdas = tr => { let col = 0; return [...tr.cells].map(c => { const o = { c, col }; col += c.colSpan || 1; return o; }); };
+  function columnaClave(tb){
+    const fila = tb.tHead && tb.tHead.rows[0] || tb.rows[0]; if(!fila) return 0;
+    const cs = celdas(fila).slice(0, 6);
+    for(const re of CLAVES){ const x = cs.find(o => (o.c.colSpan||1) === 1 && re.test(o.c.textContent.trim())); if(x) return x.col; }
+    return 0;
+  }
+  function fijar(tb){
+    if(tb.dataset.colFija) return;
+    tb.dataset.colFija = '1';
+    // Contenedor con scroll si la tabla no cabe y ningún padre la deja deslizar.
+    let a = tb.parentElement, scroll = false;
+    while(a && a !== document.body){ if(/(auto|scroll)/.test(getComputedStyle(a).overflowX)){ scroll = true; break; } a = a.parentElement; }
+    if(!scroll && tb.parentElement && tb.getBoundingClientRect().width > tb.parentElement.clientWidth + 1){
+      const w = document.createElement('div');
+      w.style.cssText = 'overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%';
+      tb.parentElement.insertBefore(w, tb); w.appendChild(tb);
+    }
+    // Una tabla con overflow:hidden (esquinas redondeadas) anula el sticky: se cambia a clip, que recorta igual.
+    if(getComputedStyle(tb).overflow !== 'visible') tb.style.overflow = 'clip';
+    const k = columnaClave(tb);
+    [...tb.rows].forEach(tr => {
+      const x = celdas(tr).find(o => o.col === k && (o.c.colSpan||1) === 1); if(!x) return;
+      const c = x.c; if(getComputedStyle(c).position === 'sticky') return;
+      c.style.background = fondo(c);
+      c.style.position = 'sticky'; c.style.left = '0';
+      c.style.zIndex = c.tagName === 'TH' ? '3' : '2';
+      c.style.boxShadow = '1px 0 0 #e5e7eb';
+    });
+  }
+  let pendiente = null;
+  function repasar(){
+    pendiente = null;
+    document.querySelectorAll('.content table').forEach(tb => { if(!tb.closest(EXCLUIR)) fijar(tb); });
+  }
+  new MutationObserver(() => { if(!pendiente) pendiente = setTimeout(repasar, 60); })
+    .observe(document.body, { childList:true, subtree:true });
+  repasar();
+})();
+</script>
 </body>
 </html>
