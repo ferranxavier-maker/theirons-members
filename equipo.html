@@ -5851,7 +5851,8 @@ function _htmlPestanasInstrucciones(){
 }
 
 // Meses que recorre el Calendario (mes: 1-12): del primero al último, con
-// flechas para pasar de uno a otro. Se abre en el primero. Todo lo demás se calcula.
+// flechas para pasar de uno a otro. Se abre en el mes en curso (o en el extremo
+// más cercano si hoy cae fuera del rango). Todo lo demás se calcula.
 // El primero es el mes de la primera partida jugada (sale de las actuaciones);
 // si aún no hay ninguna, CAL_MES_SIN_PARTIDAS.
 const CAL_MES_SIN_PARTIDAS = { anio:2027, mes:1 };
@@ -5873,7 +5874,7 @@ function _calMesInicio(){
   return f ? { anio:+f.slice(0,4), mes:+f.slice(5,7) } : CAL_MES_SIN_PARTIDAS;
 }
 const _calIndice = m => m.anio * 12 + (m.mes - 1);
-let _calOffset = 0;          // meses desde el primero que se están viendo
+let _calOffset = null;       // meses desde el primero que se están viendo (null = aún no abierto → mes en curso)
 const CAL_DIAS_SEMANA = ['L','M','X','J','V','S','D'];
 // Separación (px) entre el título del mes, la fila de días de la semana y los números.
 const CAL_ESPACIO = 30;
@@ -6003,6 +6004,10 @@ function renderCalendario(el){
   const _calInicio = _calMesInicio();
   const _calHechas = _calJugadas();
   const total = _calIndice(CAL_MES_FIN) - _calIndice(_calInicio);
+  if(_calOffset === null){
+    const _hoy = new Date();
+    _calOffset = _calIndice({ anio:_hoy.getFullYear(), mes:_hoy.getMonth()+1 }) - _calIndice(_calInicio);
+  }
   _calOffset = Math.max(0, Math.min(total, _calOffset));
   const idx = _calIndice(_calInicio) + _calOffset;
   const anio = Math.floor(idx / 12), mes = idx % 12 + 1;
