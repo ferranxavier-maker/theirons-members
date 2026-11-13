@@ -179,6 +179,7 @@ const WHS = {
 // sin descartes; sin HCP hasta llegar a VENTANA. Tope de hoyo: par + 3.
 const EXEC = { CAMPO:'executive', HOYOS_VUELTA:18, VENTANA:10 };
 const r1 = x => Math.round(x*10)/10;
+WHS.TABLA_MIN = Math.min(...Object.keys(WHS.TABLA).map(Number));   // vueltas para tener índice (3)
 const campoPorId = id => GOLF_CAMPOS.find(c=>c.id===id);
 const parCampo = c => c.hoyos.reduce((s,h)=>s+h.par,0);
 const jugador = ap => EQUIPO.find(j=>j.apodo===ap) || {apodo:ap};
@@ -302,20 +303,57 @@ const puntoGir = (G,h) => !G||!G.gir[h] ? '' : `<span class="gir${G.tp[h]?' tp':
 const claseHoyo = d => d<=-2?'ea':d===-1?'bi':d===0?'pa':d===1?'bo':'db';
 const vacio = t => `<div class="vacio">${t}</div>`;
 
+// Casillas de hándicap con el mismo estilo que el Hándicap G de pitch & putt.
+// items: {ap, hcp, n, delta}. Sin hándicap: casilla discontinua con el progreso n/ventana.
+// Pulsar una casilla abre la ficha del jugador en Equipo.
+function casillasHcp(items, ventana, fmtV, tipo){
+  const con = items.filter(d=>d.hcp!=null).sort((a,b)=>a.hcp-b.hcp);
+  const sin = items.filter(d=>d.hcp==null).sort((a,b)=>(b.n-a.n)||a.ap.localeCompare(b.ap,'es'));
+  let h = '<div style="max-width:600px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 0 16px">';
+  con.concat(sin).forEach(d=>{
+    const col = jugador(d.ap).color || '#e5e7eb';
+    const click = d.n>0 ? `data-hcpficha="${d.ap}" data-tipo="${tipo}"` : '';
+    const cur = d.n>0 ? 'cursor:pointer;' : '';
+    if(d.hcp==null){
+      const n = Math.min(d.n||0, ventana), faltan = ventana-n;
+      const seg = Array.from({length:ventana},(_,i)=>`<span style="flex:1;height:7px;border-radius:2px;background:${i<n?col:'#e5e7eb'};${i<n?'box-shadow:inset 0 0 0 1px rgba(0,0,0,0.12)':''}"></span>`).join('');
+      const txt = n===0 ? 'sin estrenar' : (faltan===1 ? '¡falta 1!' : 'faltan '+faltan);
+      h += `<div ${click} style="position:relative;background:#fff;border-radius:14px;padding:12px 10px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:108px;border:2px dashed ${col};${cur}">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#1a1a1a;margin-bottom:4px">${d.ap}</div>
+        <div style="font-family:'Fraunces',serif;font-weight:700;line-height:1;color:#1a1a1a"><span style="font-size:34px">${n}</span><span style="font-size:16px;color:#9ca3af">/${ventana}</span></div>
+        <div style="display:flex;gap:2px;width:100%;margin-top:8px">${seg}</div>
+        <div style="font-size:9px;color:#6b7280;margin-top:6px;letter-spacing:0.2px">${txt}</div></div>`;
+      return;
+    }
+    let deltaTxt = '';
+    if(d.delta!=null){ const r=Math.round(d.delta*10)/10;
+      if(r!==0) deltaTxt = ` <span style="color:${r>0?'#991b1b':'#15803d'}">(${r>0?'+':'−'}${Math.abs(r).toFixed(1).replace('.',',')})</span>`; }
+    h += `<div ${click} style="position:relative;background:${col};border-radius:14px;padding:12px 8px 14px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:108px;border:1px solid rgba(0,0,0,0.06);${cur}">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#1a1a1a;margin-bottom:6px">${d.ap}</div>
+      <span style="font-family:'Fraunces',serif;font-size:40px;font-weight:700;color:#1a1a1a;line-height:1;letter-spacing:-0.5px">${fmtV(d.hcp)}</span>
+      <div style="font-size:9px;color:#6b7280;margin-top:6px;letter-spacing:0.2px">${d.n} vueltas${deltaTxt}</div></div>`;
+  });
+  return h + '</div></div>';
+}
+function enlazarCasillas(el){
+  el.querySelectorAll('[data-hcpficha]').forEach(c=>c.addEventListener('click',()=>{
+    FICHA=c.dataset.hcpficha; FICHA_TIPO=c.dataset.tipo; FICHA_VENT='hist';
+    showTab('equipo'); RENDER.equipo(document.getElementById('tab-equipo')); window.scrollTo(0,0);
+  }));
+}
 function renderHandicap(el){
   const filas = EQUIPO.map(j=>{
     const e=EST[j.apodo]; const n=e?e.difs.length:0;
     const mis=ACTS.filter(a=>a.apodo===j.apodo);
-    return {ap:j.apodo, hi:e&&n>=3?e.hi:null, n, ult:mis.length?mis[mis.length-1]:null};
+    return {ap:j.apodo, hi:e&&n>=WHS.TABLA_MIN?e.hi:null, n, ult:mis.length?mis[mis.length-1]:null};
   });
   const con = filas.filter(f=>f.hi!=null).sort((a,b)=>a.hi-b.hi);
   const sin = filas.filter(f=>f.hi==null).sort((a,b)=>b.n-a.n||a.ap.localeCompare(b.ap));
   let h = `<h2>Hándicap</h2><p class="nota">Sistema Mundial de Hándicap: media de los 8 mejores diferenciales de las últimas 20 vueltas (con menos vueltas, tabla oficial desde 3). Todos empiezan sin hándicap. Diferencial = 113 / slope × (resultado ajustado − CR). Se juega a triple bogey: cada hoyo cuenta como máximo par + 3. Para el diferencial, sin índice el tope es par + 5 y con índice doble bogey neto (se aplica el menor).</p>`;
-  if(!ACTS.length) return el.innerHTML = h + vacio('Aún no hay vueltas registradas.');
-  h += `<div class="wrap"><table><tr><th>#</th><th class="izq">Jugador</th><th>Hándicap</th><th>Vueltas</th><th>Último dif.</th><th>Última vuelta</th></tr>`;
-  con.forEach((f,i)=>{ h+=`<tr><td>${i+1}</td><td class="izq">${jugHTML(f.ap)}</td><td class="big num">${fmt1(f.hi)}</td><td>${f.n}</td><td class="num">${fmt1(f.ult.dif)}</td><td>${fmtFecha(f.ult.fecha)} · ${f.ult.campo.corto}</td></tr>`; });
-  sin.forEach(f=>{ h+=`<tr class="dim"><td>—</td><td class="izq">${jugHTML(f.ap)}</td><td>${f.n?`faltan ${3-f.n}`:'—'}</td><td>${f.n}</td><td class="num">${f.ult?fmt1(f.ult.dif):'—'}</td><td>${f.ult?fmtFecha(f.ult.fecha)+' · '+f.ult.campo.corto:'—'}</td></tr>`; });
-  el.innerHTML = h + `</table></div>`;
+  const items = filas.map(f=>{ const hist=(EST[f.ap]||{hist:[]}).hist.filter(x=>x.hi!=null);
+    return {ap:f.ap, hcp:f.hi, n:f.n, delta: hist.length>=2 ? hist[hist.length-1].hi-hist[hist.length-2].hi : null}; });
+  el.innerHTML = h + casillasHcp(items, WHS.TABLA_MIN, fmt1, 'c18');
+  enlazarCasillas(el);
 }
 
 function renderTabla(el){
@@ -717,17 +755,12 @@ function renderExecutive(el){
     h += SUB.map(([k],i)=>`<div class="exsec" data-sec="${k}"${i?' style="display:none"':''}>${vacio('Aún no hay vueltas en el Executive.')}</div>`).join('');
   } else {
   h += `<div class="exsec" data-sec="hcp">`;
-  // Hándicap Executive
-  const filas = EQUIPO.map(j=>{ const mis=vueltas.filter(v=>v.apodo===j.apodo); const e=est[j.apodo];
-    return {ap:j.apodo, hcp:e?e.hcp:null, n:mis.length, ult:mis.length?mis[mis.length-1]:null}; }).filter(f=>f.n);
-  const con = filas.filter(f=>f.hcp!=null).sort((a,b)=>a.hcp-b.hcp);
-  const sin = filas.filter(f=>f.hcp==null).sort((a,b)=>b.n-a.n||a.ap.localeCompare(b.ap));
-  h += `<h3>Hándicap Executive</h3><div class="wrap"><table><tr><th>#</th><th class="izq">Jugador</th><th>HCP</th><th>Vueltas</th><th>Última</th><th>Fecha</th></tr>`;
-  let pos=0, prev=null;
-  con.forEach((f,i)=>{ if(f.hcp!==prev){ pos=i+1; prev=f.hcp; }
-    h+=`<tr><td>${pos}</td><td class="izq">${jugHTML(f.ap)}</td><td class="big num">${fmt1(f.hcp)}</td><td>${f.n}</td><td class="num">${f.ult.bruto} (${fmtD(f.ult.dpar)})</td><td>${pie(f.ult)}</td></tr>`; });
-  sin.forEach(f=>{ h+=`<tr class="dim"><td>—</td><td class="izq">${jugHTML(f.ap)}</td><td>faltan ${EXEC.VENTANA-f.n}</td><td>${f.n}</td><td class="num">${f.ult.bruto} (${fmtD(f.ult.dpar)})</td><td>${pie(f.ult)}</td></tr>`; });
-  h += `</table></div></div>`;
+  // Hándicap Executive: casillas como el Hándicap G de pitch & putt
+  const itemsEx = EQUIPO.map(j=>{ const mis=vueltas.filter(v=>v.apodo===j.apodo); const e=est[j.apodo]; const u=mis[mis.length-1];
+    return {ap:j.apodo, hcp:e?e.hcp:null, n:mis.length, delta: u && u.hcpAntes!=null && u.hcpDespues!=null ? u.hcpDespues-u.hcpAntes : null}; });
+  const fmtEx = x => (x>0?'+':x<0?'−':'')+Math.abs(x).toFixed(1).replace('.',',');
+  h += `<h3>Hándicap Executive</h3>` + casillasHcp(itemsEx, EXEC.VENTANA, fmtEx, 'exec');
+  h += `</div>`;
   // Tabla de vueltas
   h += `<div class="exsec" data-sec="tabla" style="display:none"><h3>Tabla de vueltas</h3><div class="wrap"><table><tr><th>Fecha</th><th class="izq">Jugador</th>${hv.map((_,i)=>`<th>${i+1}</th>`).join('')}<th>Bruto</th><th>+/- par</th><th>GIR</th><th>3P</th><th>HCP después</th></tr>`;
   vueltas.slice().reverse().forEach(v=>{
@@ -740,7 +773,7 @@ function renderExecutive(el){
   const mejores = EQUIPO.map(j=>{ const mis=datos.filter(x=>x.v.apodo===j.apodo); if(!mis.length) return null;
     const m=Math.min(...mis.map(x=>x.v.bruto)); return {ap:j.apodo, m, vs:mis.filter(x=>x.v.bruto===m)}; }).filter(Boolean).sort((a,b)=>a.m-b.m);
   h += `<h3>Mejor vuelta de cada uno</h3><div class="wrap"><table><tr><th>#</th><th class="izq">Jugador</th><th>Bruto</th><th>+/- par</th><th class="izq">Cuándo</th></tr>`;
-  pos=0; prev=null;
+  let pos=0, prev=null;
   mejores.forEach((f,i)=>{ if(f.m!==prev){ pos=i+1; prev=f.m; }
     h+=`<tr><td>${pos}</td><td class="izq">${jugHTML(f.ap)}</td><td class="big num">${f.m}</td><td class="num">${fmtD(f.m-parV)}</td><td class="izq">${f.vs.map(x=>pie(x.v)).join('<br>')}</td></tr>`; });
   h += `</table></div>`;
@@ -749,6 +782,7 @@ function renderExecutive(el){
   h += `<h3>Récords</h3><div class="cards">` + card('Más birdies en una vuelta', record('bi')) + card('Más pares o mejor en una vuelta', record('po')) + `</div></div>`;
   }
   el.innerHTML = h;
+  enlazarCasillas(el);
   el.querySelectorAll('.exsub').forEach(b=>b.addEventListener('click',()=>{
     el.querySelectorAll('.exsub').forEach(x=>x.classList.toggle('active',x===b));
     el.querySelectorAll('.exsec').forEach(x=>x.style.display = x.dataset.sec===b.dataset.sub ? '' : 'none');
