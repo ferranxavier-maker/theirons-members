@@ -39,6 +39,7 @@ td.izq,th.izq{text-align:left}
 .num{font-variant-numeric:tabular-nums}
 .big{font-size:13px;font-weight:700}
 .dim{color:#999}
+.gir{display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;margin-left:2px;vertical-align:super}.gir.tp{background:#dc2626}
 .ea{background:#fde68a}.bi{background:#bbf7d0}.pa{background:#fff}.bo{background:#fee2e2}.db{background:#fecaca}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
 .card{border:1px solid #e5e7eb;border-radius:10px;padding:10px}
@@ -141,13 +142,16 @@ const GOLF_CAMPOS = [
 
 // Vueltas jugadas. Una entrada por partida:
 // { fecha:'YYYY-MM-DD', campo:'reus'|'masiabach', barras:'amarillas' (opcional),
-//   jugadores:{ Apodo:[18 golpes brutos], ... } }
+//   jugadores:{ Apodo:[18 golpes brutos], ... },
+//   gir:{ Apodo:[nº de hoyo con green en regulación], ... } (opcional) }
+// Tripateo (3P) = hoyo con GIR y par + 1 o más: lo calcula la app, no se apunta.
 const GOLF_RONDAS = [
   { fecha:'2026-11-13', campo:'executive', jugadores:{
     Capi:  [4,3,3,4,5,4,6,3,4, 5,3,4,6,6,5,7,3,4],
     Albert:[4,4,5,4,7,4,4,4,3, 6,3,4,6,5,5,5,4,3],
     Cabra: [5,5,4,4,7,3,6,4,4, 5,4,3,7,5,5,8,3,3],
-    David: [4,4,6,5,6,6,8,4,5, 4,4,4,7,7,6,5,4,4] } }
+    David: [4,4,6,5,6,6,8,4,5, 4,4,4,7,7,6,5,4,4] },
+    gir:{ Capi:[1,2,3,7,17], Albert:[1,4,11,18], Cabra:[1,17,18], David:[] } }
 ];
 
 // ============================================================
@@ -224,7 +228,7 @@ function procesar(){
       const neto = ph==null ? null : bruto - ph;
       if(!valido){
         acts.push({ronda:ri, fecha:r.fecha, campo:c, barras:bar, tee, par, apodo:ap, golpes:g, bruto, ags, dif:null,
-                   hiAntes, hiDespues:hiAntes, ch:null, ph:null, stb:null, neto:null});
+                   hiAntes, hiDespues:hiAntes, ch:null, ph:null, stb:null, neto:null, G:girTramo(r,ap,0,g,c.hoyos)});
         return;
       }
       e.difs.push(dif);
@@ -242,7 +246,7 @@ function procesar(){
       e.hi = hi;
       e.hist.push({fecha:r.fecha, hi, n:e.difs.length});
       acts.push({ronda:ri, fecha:r.fecha, campo:c, barras:bar, tee, par, apodo:ap, golpes:g, bruto, ags, dif,
-                 hiAntes, hiDespues:hi, ch, ph, stb, neto});
+                 hiAntes, hiDespues:hi, ch, ph, stb, neto, G:girTramo(r,ap,0,g,c.hoyos)});
     });
   });
   return {acts, est};
@@ -274,7 +278,7 @@ function procesarExecutive(){
         e.dpars.push(bruto-parV);
         const ult = e.dpars.slice(-EXEC.VENTANA);
         e.hcp = e.dpars.length>=EXEC.VENTANA ? r1(ult.reduce((s,x)=>s+x,0)/ult.length) : null;
-        vueltas.push({fecha:r.fecha, apodo:ap, n:k+1, golpes:g, hoyos:hv, par:parV, bruto, dpar:bruto-parV, hcpAntes, hcpDespues:e.hcp});
+        vueltas.push({fecha:r.fecha, apodo:ap, n:k+1, golpes:g, hoyos:hv, par:parV, bruto, dpar:bruto-parV, hcpAntes, hcpDespues:e.hcp, G:girTramo(r,ap,k*EXEC.HOYOS_VUELTA,g,hv)});
       }
     });
   });
@@ -284,6 +288,15 @@ const EXEC_DATOS = procesarExecutive();
 const fotoJ = ap => { const j=jugador(ap);
   return j.foto ? `<img src="${j.foto}" alt="">` : `<span class="ini" style="background:${j.color||'#eee'}">${ap[0]}</span>`; };
 const jugHTML = ap => `<span class="jug">${fotoJ(ap)}<span>${ap}</span></span>`;
+// GIR de un jugador en un tramo de hoyos [desde, desde+n): null si la ronda no trae GIR.
+function girTramo(r, ap, desde, golpes, hoyos){
+  if(!r.gir || !r.gir[ap]) return null;
+  const set = new Set(r.gir[ap]);
+  const gir = golpes.map((_,h)=>set.has(desde+h+1));
+  const tp = gir.map((x,h)=>x && golpes[h]>=hoyos[h].par+1);
+  return {gir, tp, nGir:gir.filter(Boolean).length, n3p:tp.filter(Boolean).length};
+}
+const puntoGir = (G,h) => !G||!G.gir[h] ? '' : `<span class="gir${G.tp[h]?' tp':''}"></span>`;
 const claseHoyo = d => d<=-2?'ea':d===-1?'bi':d===0?'pa':d===1?'bo':'db';
 const vacio = t => `<div class="vacio">${t}</div>`;
 
@@ -306,11 +319,11 @@ function renderHandicap(el){
 function renderTabla(el){
   let h = `<h2>Tabla de vueltas</h2>`;
   if(!ACTS.length) return el.innerHTML = h + vacio('Aún no hay vueltas registradas.');
-  h += `<div class="wrap"><table><tr><th>Fecha</th><th class="izq">Campo</th><th>Barras</th><th class="izq">Jugador</th><th>Bruto</th><th>+/- par</th><th>Ajustado</th><th>Dif.</th><th>Hcp antes</th><th>HJ</th><th>Neto</th><th>Stb</th><th>Hcp después</th></tr>`;
+  h += `<div class="wrap"><table><tr><th>Fecha</th><th class="izq">Campo</th><th>Barras</th><th class="izq">Jugador</th><th>Bruto</th><th>+/- par</th><th>GIR</th><th>3P</th><th>Ajustado</th><th>Dif.</th><th>Hcp antes</th><th>HJ</th><th>Neto</th><th>Stb</th><th>Hcp después</th></tr>`;
   ACTS.slice().reverse().forEach(a=>{
-    h+=`<tr><td>${fmtFecha(a.fecha)}</td><td class="izq">${a.campo.corto}</td><td>${BARRAS_NOMBRE[a.barras]}</td><td class="izq">${jugHTML(a.apodo)}</td><td class="big num">${a.bruto}</td><td class="num">${fmtD(a.bruto-a.par)}</td><td class="num">${a.ags}</td><td class="num">${fmt1(a.dif)}</td><td class="num">${fmt1(a.hiAntes)}</td><td class="num">${a.ph??'—'}</td><td class="num">${a.neto??'—'}</td><td class="num">${a.stb??'—'}</td><td class="num">${fmt1(a.hiDespues)}</td></tr>`;
+    h+=`<tr><td>${fmtFecha(a.fecha)}</td><td class="izq">${a.campo.corto}</td><td>${BARRAS_NOMBRE[a.barras]}</td><td class="izq">${jugHTML(a.apodo)}</td><td class="big num">${a.bruto}</td><td class="num">${fmtD(a.bruto-a.par)}</td><td class="num">${a.G?a.G.nGir:'—'}</td><td class="num">${a.G?a.G.n3p:'—'}</td><td class="num">${a.ags}</td><td class="num">${fmt1(a.dif)}</td><td class="num">${fmt1(a.hiAntes)}</td><td class="num">${a.ph??'—'}</td><td class="num">${a.neto??'—'}</td><td class="num">${a.stb??'—'}</td><td class="num">${fmt1(a.hiDespues)}</td></tr>`;
   });
-  el.innerHTML = h + `</table></div><p class="nota">HJ = hándicap de juego del día (95 % del hándicap de campo). Neto y stableford solo cuando el jugador ya tenía índice antes de la vuelta.</p>`;
+  el.innerHTML = h + `</table></div><p class="nota">HJ = hándicap de juego del día (95 % del hándicap de campo). Neto y stableford solo cuando el jugador ya tenía índice antes de la vuelta. GIR = greens en regulación; 3P = tripateos (GIR y par + 1 o más).</p>`;
 }
 
 function contarTipos(a){
@@ -714,10 +727,10 @@ function renderExecutive(el){
   sin.forEach(f=>{ h+=`<tr class="dim"><td>—</td><td class="izq">${jugHTML(f.ap)}</td><td>faltan ${EXEC.VENTANA-f.n}</td><td>${f.n}</td><td class="num">${f.ult.bruto} (${fmtD(f.ult.dpar)})</td><td>${pie(f.ult)}</td></tr>`; });
   h += `</table></div></div>`;
   // Tabla de vueltas
-  h += `<div class="exsec" data-sec="tabla" style="display:none"><h3>Tabla de vueltas</h3><div class="wrap"><table><tr><th>Fecha</th><th class="izq">Jugador</th>${hv.map((_,i)=>`<th>${i+1}</th>`).join('')}<th>Bruto</th><th>+/- par</th><th>HCP después</th></tr>`;
+  h += `<div class="exsec" data-sec="tabla" style="display:none"><h3>Tabla de vueltas</h3><div class="wrap"><table><tr><th>Fecha</th><th class="izq">Jugador</th>${hv.map((_,i)=>`<th>${i+1}</th>`).join('')}<th>Bruto</th><th>+/- par</th><th>GIR</th><th>3P</th><th>HCP después</th></tr>`;
   vueltas.slice().reverse().forEach(v=>{
-    h+=`<tr><td>${fmtFecha(v.fecha)}</td><td class="izq">${jugHTML(v.apodo)}</td>${v.golpes.map((g,i)=>`<td class="${claseHoyo(g-hv[i].par)}">${g}</td>`).join('')}<td class="big num">${v.bruto}</td><td class="num">${fmtD(v.dpar)}</td><td class="num">${fmt1(v.hcpDespues)}</td></tr>`; });
-  h += `</table></div></div>`;
+    h+=`<tr><td>${fmtFecha(v.fecha)}</td><td class="izq">${jugHTML(v.apodo)}</td>${v.golpes.map((g,i)=>`<td class="${claseHoyo(g-hv[i].par)}">${g}${puntoGir(v.G,i)}</td>`).join('')}<td class="big num">${v.bruto}</td><td class="num">${fmtD(v.dpar)}</td><td class="num">${v.G?v.G.nGir:'—'}</td><td class="num">${v.G?v.G.n3p:'—'}</td><td class="num">${fmt1(v.hcpDespues)}</td></tr>`; });
+  h += `</table></div><p class="nota"><span class="gir"></span> GIR (green en regulación) · <span class="gir tp"></span> GIR con tripateo (par + 1 o más).</p></div>`;
   // Records
   h += `<div class="exsec" data-sec="records" style="display:none">`;
   const datos = vueltas.map(v=>{ let bi=0, po=0;
