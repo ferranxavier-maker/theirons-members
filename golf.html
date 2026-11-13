@@ -419,44 +419,84 @@ function renderStats(el){
   el.innerHTML = h + `</table></div>`;
 }
 
+// ============================================================
+// RECORDS con la misma estética y las mismas secciones que los Records de pitch & putt
+// (renderRecordsGlobal). Todo va sobre el par de cada hoyo: birdie = par − 1 o mejor,
+// doble bogey = par + 2 o peor, hole in one = 1 golpe, doble dígito = +10 o más en la vuelta.
+// vs: [{apodo, fecha:'YYYY-MM-DD', campo, golpes[], pars[], bruto, dpar}]
+// ============================================================
+function _batidoToggle(el){
+  const wrap = el.closest('.bwrap'); if(!wrap) return;
+  const d = wrap.querySelector('.bdet'); if(!d) return;
+  const t = el.dataset.info || '';
+  if(d.style.display === 'block' && d.textContent === t){ d.style.display = 'none'; }
+  else { d.textContent = t; d.style.display = 'block'; }
+}
+function recordsPP(vs, ambito){
+  const fFecha = iso => { const [y,m,d]=iso.split('-'); return `${d}/${m}/${y.slice(-2)}`; };
+  const color = ap => jugador(ap).color || '#eee';
+  const tile = ap => '<div style="width:26px;height:26px;border-radius:5px;background:'+color(ap)+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#333;flex-shrink:0">'+ap.slice(0,3)+'</div>';
+  const titulo = (emoji, t, sub, fs) => '<div style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:12px;margin-bottom:8px"><span style="font-size:'+(fs||14)+'px;line-height:1">'+emoji+'</span> '+t+' <span style="font-weight:400;color:#aaa;font-size:10px;margin-left:4px">· '+sub+'</span></div>';
+  const scoreColor = v => v<0?{bg:'#dcfce7',col:'#15803d'}:v===0?{bg:'#f3f4f6',col:'#555'}:v<=5?{bg:'#fff7ed',col:'#c2410c'}:{bg:'#fee2e2',col:'#991b1b'};
+  const fmtDelta = v => v>0 ? '+'+v : String(v);
+  const info = v => fFecha(v.fecha)+' · '+v.campo;
+  const PLAYERS = EQUIPO.map(j=>j.apodo).filter(ap=>vs.some(v=>v.apodo===ap));
+  const actsDe = ap => vs.filter(v=>v.apodo===ap).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const bir = v => v.golpes.filter((g,i)=>g-v.pars[i]<=-1).length;
+  const dbl = v => v.golpes.filter((g,i)=>g-v.pars[i]>=2).length;
+  const racha = (ap, ok) => { const acts=actsDe(ap); let maxBest=0, maxDesde=null, maxHasta=null, cur=0, curDesde=null;
+    acts.forEach(a=>{ if(ok(a)){ cur++; if(cur===1) curDesde=a.fecha; if(cur>maxBest){ maxBest=cur; maxDesde=curDesde; maxHasta=a.fecha; } } else cur=0; });
+    let actual=0; for(let i=acts.length-1;i>=0;i--){ if(ok(acts[i])) actual++; else break; }
+    return {jugador:ap, best:maxBest, desde:maxBest?maxDesde:null, hasta:maxBest?maxHasta:null, actual}; };
+  const ordena = arr => arr.sort((a,b)=>b.best-a.best||a.jugador.localeCompare(b.jugador));
+  const filaRacha = (p,i,col,bgTop) => { const actualColor = p.actual>0 ? col : '#ccc';
+    const rango = p.desde ? fFecha(p.desde)+(p.hasta && p.hasta!==p.desde ? '→'+fFecha(p.hasta) : '') : '—';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:'+(i===0?bgTop:'#fff')+';border-radius:7px;margin-bottom:4px;border:1px solid #eee">'
+      +tile(p.jugador)+'<div style="flex:1;font-weight:500;font-size:12px">'+p.jugador+'</div>'
+      +'<div style="font-size:10px;color:#aaa;margin-right:4px">'+rango+'</div>'
+      +'<div style="display:flex;align-items:baseline;gap:4px"><div style="font-weight:700;font-size:16px;color:'+col+';min-width:28px;text-align:right">'+p.best+'</div>'
+      +'<div style="font-weight:600;font-size:11px;color:'+actualColor+';min-width:16px;text-align:right">'+p.actual+'</div></div></div>'; };
+  const filaUna = (p,i) => '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:'+(i===0?'#f0fdf4':'#fff')+';border-radius:7px;margin-bottom:4px;border:1px solid #eee">'
+      +tile(p.jugador)+'<div style="flex:1;font-weight:500;font-size:12px">'+p.jugador+'</div>'
+      +'<div style="font-size:10px;color:#aaa;margin-right:4px">'+(p.v?info(p.v):'—')+'</div>'
+      +'<div style="font-weight:700;font-size:16px;color:#15803d;min-width:28px;text-align:right">'+p.best+'</div></div>';
+  const chipsSeccion = (data, vacioTxt) => { if(!data.length) return '<div style="font-size:11px;color:#aaa;padding:8px">'+vacioTxt+'</div>';
+    return data.map((p,i)=>{ const chips=[...p.rondas].sort((a,b)=>a.dpar-b.dpar).map(r=>{ const c=scoreColor(r.dpar);
+        return '<span class="bchip" data-info="'+info(r)+'" onclick="_batidoToggle(this)" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:24px;border-radius:5px;background:'+c.bg+';color:'+c.col+';font-size:11px;font-weight:500;border:1px solid '+c.col+'33;cursor:pointer">'+fmtDelta(r.dpar)+'</span>'; }).join(' ');
+      return '<div class="bwrap" style="margin-bottom:4px"><div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:'+(i===0?'#f0fdf4':'#fff')+';border-radius:7px;border:1px solid #eee">'
+        +tile(p.jugador)+'<div style="font-weight:500;font-size:12px;min-width:80px">'+p.jugador+'</div>'
+        +'<div style="font-weight:700;font-size:13px;color:#0f766e;min-width:20px">'+p.rondas.length+'</div>'
+        +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+chips+'</div></div>'
+        +'<div class="bdet" style="display:none;font-size:10px;color:#555;margin-top:3px;padding:5px 10px;background:#f9fafb;border:1px solid #eee;border-radius:6px"></div></div>'; }).join(''); };
+  const agrupa = ok => PLAYERS.map(ap=>({jugador:ap, rondas:actsDe(ap).filter(ok)})).filter(p=>p.rondas.length)
+    .sort((a,b)=>b.rondas.length-a.rondas.length || Math.min(...a.rondas.map(r=>r.dpar))-Math.min(...b.rondas.map(r=>r.dpar)));
+  const sec = c => '<div style="margin-bottom:18px">'+c+'</div>';
+
+  let h = '<div style="max-width:630px">';
+  // Mejor vuelta de cada uno (la que ya tenía la app de golf), con el mismo formato de fila
+  const mejores = PLAYERS.map(ap=>{ const a=actsDe(ap); const m=Math.min(...a.map(v=>v.dpar)); const v=a.filter(x=>x.dpar===m).pop(); return {jugador:ap, best:fmtDelta(m), m, v}; }).sort((a,b)=>a.m-b.m||a.jugador.localeCompare(b.jugador));
+  h += sec(titulo('🏌️','Mejor vuelta de cada uno','respecto al par · '+ambito,15) + mejores.map((p,i)=>filaUna(p,i).replace('>'+p.best+'</div></div>','>'+p.best+' <span style="font-size:10px;color:#aaa;font-weight:500">('+p.v.bruto+')</span></div></div>')).join(''));
+  h += sec(titulo('🙏','Los Inmaculados','tarjeta entera a par o mejor · '+ambito+' · pincha un resultado',15) + chipsSeccion(agrupa(v=>v.golpes.every((g,i)=>g<=v.pars[i])), 'Nadie ha firmado aún una tarjeta inmaculada.'));
+  h += sec(titulo('🗡️','Han batido el campo',ambito+' · pincha un resultado',15) + chipsSeccion(agrupa(v=>v.dpar<0), 'Nadie ha batido aún ningún campo.'));
+  h += sec(titulo('9️⃣','Racha sin doble dígito',ambito+' · por fecha',15) + ordena(PLAYERS.map(ap=>racha(ap,v=>v.dpar<10))).map((p,i)=>filaRacha(p,i,'#0f766e','#f0fdf4')).join(''));
+  h += sec(titulo('9⃣🐦','Racha Doblete','sin doble dígito Y con birdie · '+ambito+' · por fecha') + ordena(PLAYERS.map(ap=>racha(ap,v=>v.dpar<10&&bir(v)>0))).map((p,i)=>filaRacha(p,i,'#15803d','#f0fdf4')).join(''));
+  h += sec(titulo('🎩','Racha Hat Trick','sin doble dígito + con birdie + sin doble bogey · '+ambito) + ordena(PLAYERS.map(ap=>racha(ap,v=>v.dpar<10&&bir(v)>0&&dbl(v)===0))).map((p,i)=>filaRacha(p,i,'#7c3aed','#faf5ff')).join(''));
+  const masBir = PLAYERS.map(ap=>{ let mejor=null; actsDe(ap).forEach(v=>{ if(!mejor||bir(v)>bir(mejor)||(bir(v)===bir(mejor)&&v.fecha>mejor.fecha)) mejor=v; }); return {jugador:ap, best:bir(mejor), v:mejor}; }).sort((a,b)=>b.best-a.best||a.jugador.localeCompare(b.jugador));
+  h += sec(titulo('🐦','Más birdies en un partido',ambito) + masBir.map(filaUna).join(''));
+  const consec = PLAYERS.map(ap=>{ let best=0, mejor=null; actsDe(ap).forEach(v=>{ let max=0,cur=0; v.golpes.forEach((g,i)=>{ if(g-v.pars[i]<=-1){ cur++; if(cur>max) max=cur; } else cur=0; }); if(max>best||(max===best&&mejor&&v.fecha>mejor.fecha)){ best=max; mejor=v; } }); return {jugador:ap, best, v:best?mejor:null}; }).sort((a,b)=>b.best-a.best||a.jugador.localeCompare(b.jugador));
+  h += sec(titulo('🐦🐦','Birdies consecutivos','mismo partido · '+ambito) + consec.map(filaUna).join(''));
+  h += sec(titulo('🐦⛳','Partidos seguidos haciendo birdie',ambito+' · por fecha') + ordena(PLAYERS.map(ap=>racha(ap,v=>bir(v)>0))).map((p,i)=>filaRacha(p,i,'#15803d','#f0fdf4')).join(''));
+  h += sec(titulo('🚫','Partidos seguidos sin doble bogey',ambito+' · por fecha') + ordena(PLAYERS.map(ap=>racha(ap,v=>dbl(v)===0))).map((p,i)=>filaRacha(p,i,'#7c3aed','#f5f3ff')).join(''));
+  const aces = []; vs.forEach(v=>v.golpes.forEach((g,i)=>{ if(g===1) aces.push({jugador:v.apodo, v, hoyo:i+1}); })); aces.sort((a,b)=>b.v.fecha.localeCompare(a.v.fecha));
+  h += sec(titulo('⭐','Hole in one',ambito,15) + (!aces.length ? '<div style="font-size:11px;color:#aaa;padding:8px">Todavía nadie ha hecho hoyo en uno. Cuando ocurra, aparecerá aquí automáticamente.</div>'
+    : aces.map(a=>'<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#fffbeb;border-radius:7px;margin-bottom:4px;border:1px solid #fde68a">'+tile(a.jugador)+'<div style="font-weight:500;font-size:12px;min-width:80px">'+a.jugador+'</div><div style="font-size:11px;color:#555">hoyo <b>'+a.hoyo+'</b> · '+a.v.campo+' · '+fFecha(a.v.fecha)+'</div></div>').join('')));
+  return h + '</div>';
+}
 function renderRecords(el){
   let h = `<h2>Records</h2>`;
   if(!ACTS.length) return el.innerHTML = h + vacio('Aún no hay vueltas registradas.');
-  // Por vuelta: birdies (birdie o mejor), pares o mejor, y sus rachas seguidas.
-  const datos = ACTS.map(a=>{
-    let bi=0, po=0, rBi=0, rPo=0, cBi=0, cPo=0;
-    a.golpes.forEach((v,i)=>{ const d=v-a.campo.hoyos[i].par;
-      if(d<=-1){ bi++; cBi++; } else cBi=0;
-      if(d<=0){ po++; cPo++; } else cPo=0;
-      rBi=Math.max(rBi,cBi); rPo=Math.max(rPo,cPo); });
-    return {a, bi, po, rBi, rPo, dpar:a.bruto-a.par};
-  });
-  const pie = x => `${fmtFecha(x.a.fecha)} · ${x.a.campo.corto}`;
-
-  // 1. Mejor resultado de cada uno (respecto al par, para comparar campos distintos)
-  const mejores = EQUIPO.map(j=>{
-    const mis = datos.filter(x=>x.a.apodo===j.apodo); if(!mis.length) return null;
-    const m = Math.min(...mis.map(x=>x.dpar));
-    return {ap:j.apodo, d:m, vs:mis.filter(x=>x.dpar===m)};
-  }).filter(Boolean).sort((a,b)=>a.d-b.d);
-  h += `<h3>Mejor resultado de cada uno</h3><div class="wrap"><table><tr><th class="fx0 n0">#</th><th class="izq fx1">Jugador</th><th>+/- par</th><th>Bruto</th><th class="izq">Dónde y cuándo</th></tr>`;
-  let pos=0, prev=null;
-  mejores.forEach((f,i)=>{ if(f.d!==prev){ pos=i+1; prev=f.d; }
-    h += `<tr><td class="fx0 n0">${pos}</td><td class="izq fx1">${jugHTML(f.ap)}</td><td class="big num">${fmtD(f.d)}</td><td class="num">${f.vs.map(x=>x.a.bruto).join(' / ')}</td><td class="izq">${f.vs.map(pie).join('<br>')}</td></tr>`; });
-  h += `</table></div><p class="nota">Ordenado por resultado respecto al par, para poder comparar campos con distinto par.</p>`;
-
-  // 2-5. Récords del club
-  const record = (k) => { const v=Math.max(...datos.map(x=>x[k])); return v>0 ? {v, quien:datos.filter(x=>x[k]===v)} : null; };
-  const card = (t,r) => `<div class="card"><div class="t">${t}</div>${r?`<div class="v">${r.v}</div>${r.quien.map(x=>`<div class="s">${x.a.apodo} · ${pie(x)}</div>`).join('')}`:'<div class="s">—</div>'}</div>`;
-  h += `<h3>Récords</h3><div class="cards">`;
-  h += card('Más birdies en un partido', record('bi'));
-  h += card('Más birdies seguidos', record('rBi'));
-  h += card('Más pares o mejor en un partido', record('po'));
-  h += card('Más pares o mejor seguidos', record('rPo'));
-  h += `</div><p class="nota">Birdie cuenta birdie o mejor (eagle incluido). Las rachas son dentro de una misma vuelta.</p>`;
-  el.innerHTML = h;
+  el.innerHTML = h + recordsPP(vueltasJugadorTodas('c18'), 'campos de 18');
 }
-
 
 function renderCampos(el){
   let h = `<h2>Campos</h2>`;
@@ -812,20 +852,8 @@ function renderExecutive(el){
       + celdaTotalPP(v.dpar) + celdasStatsPP(v.golpes, pars)
       + `<td style="text-align:center;font-size:11px;border:1px solid #e5e7eb">${v.G?v.G.nGir:'—'}</td><td style="text-align:center;font-size:11px;border:1px solid #e5e7eb;color:${v.G&&v.G.n3p?'#991b1b':'#555'}">${v.G?v.G.n3p:'—'}</td><td style="text-align:center;font-size:11px;border:1px solid #e5e7eb">${fmt1(v.hcpDespues)}</td></tr>`; });
   h += `</tbody></table></div><p class="nota"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a"></span> GIR (green en regulación) · <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#dc2626"></span> GIR con tripateo (par + 1 o más).</p></div>`;
-  // Records
-  h += `<div class="exsec" data-sec="records" style="display:none">`;
-  const datos = vueltas.map(v=>{ let bi=0, po=0;
-    v.golpes.forEach((g,i)=>{ const d=g-hv[i].par; if(d<=-1) bi++; if(d<=0) po++; }); return {v, bi, po}; });
-  const mejores = EQUIPO.map(j=>{ const mis=datos.filter(x=>x.v.apodo===j.apodo); if(!mis.length) return null;
-    const m=Math.min(...mis.map(x=>x.v.bruto)); return {ap:j.apodo, m, vs:mis.filter(x=>x.v.bruto===m)}; }).filter(Boolean).sort((a,b)=>a.m-b.m);
-  h += `<h3>Mejor vuelta de cada uno</h3><div class="wrap"><table><tr><th class="fx0 n0">#</th><th class="izq fx1">Jugador</th><th>Bruto</th><th>+/- par</th><th class="izq">Cuándo</th></tr>`;
-  let pos=0, prev=null;
-  mejores.forEach((f,i)=>{ if(f.m!==prev){ pos=i+1; prev=f.m; }
-    h+=`<tr><td class="fx0 n0">${pos}</td><td class="izq fx1">${f.ap}</td><td class="big num">${f.m}</td><td class="num">${fmtD(f.m-parV)}</td><td class="izq">${f.vs.map(x=>pie(x.v)).join('<br>')}</td></tr>`; });
-  h += `</table></div>`;
-  const record = k => { const v=Math.max(...datos.map(x=>x[k])); return v>0 ? {v, quien:datos.filter(x=>x[k]===v)} : null; };
-  const card = (t,r) => `<div class="card"><div class="t">${t}</div>${r?`<div class="v">${r.v}</div>${r.quien.map(x=>`<div class="s">${x.v.apodo} · ${pie(x.v)}</div>`).join('')}`:'<div class="s">—</div>'}</div>`;
-  h += `<h3>Récords</h3><div class="cards">` + card('Más birdies en una vuelta', record('bi')) + card('Más pares o mejor en una vuelta', record('po')) + `</div></div>`;
+  // Records: mismas secciones y estética que los Records de pitch & putt
+  h += `<div class="exsec" data-sec="records" style="display:none">` + recordsPP(vueltasJugadorTodas('exec'), 'Executive') + `</div>`;
   }
   el.innerHTML = h;
   enlazarCasillas(el);
@@ -879,6 +907,7 @@ function grafProgresion(vs){
     ${vs.map((v,i)=>`<circle cx="${X(i)}" cy="${Y(v.dpar)}" r="3.5" fill="#1a1a1a"><title>${fmtFecha(v.fecha)} · ${v.donde} · ${v.bruto} (${fmtD(v.dpar)})</title></circle>`).join('')}
   </svg></div><p class="nota">Golpes sobre el par de cada vuelta, de la más antigua a la más reciente.</p>`;
 }
+const vueltasJugadorTodas = tipo => EQUIPO.flatMap(j=>vueltasJugador(j.apodo,tipo).map(v=>({...v, apodo:j.apodo, campo:v.donde})));
 function renderEquipo(el){
   if(FICHA) return renderFicha(el, FICHA);
   // Mismo aspecto que la tabla de Equipo de pitch & putt.
