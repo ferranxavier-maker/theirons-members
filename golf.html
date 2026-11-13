@@ -39,6 +39,9 @@ td.izq,th.izq{text-align:left}
 .num{font-variant-numeric:tabular-nums}
 .big{font-size:13px;font-weight:700}
 .dim{color:#999}
+.fx0,.fx1{position:sticky;z-index:2;background:#fff}.fx0{left:0}.fx1{left:var(--fx,30px)}
+th.fx0,th.fx1{background:#f9fafb;z-index:3}
+.n0{width:30px;min-width:30px;max-width:30px}
 .gir{display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;margin-left:2px;vertical-align:super}.gir.tp{background:#dc2626}
 .ea{background:#fde68a}.bi{background:#bbf7d0}.pa{background:#fff}.bo{background:#fee2e2}.db{background:#fecaca}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
@@ -390,9 +393,9 @@ function renderHandicap(el){
 function renderTabla(el){
   let h = `<h2>Tabla de vueltas</h2>`;
   if(!ACTS.length) return el.innerHTML = h + vacio('Aún no hay vueltas registradas.');
-  h += `<div class="wrap"><table><tr><th>Fecha</th><th class="izq">Campo</th><th>Barras</th><th class="izq">Jugador</th><th>Bruto</th><th>+/- par</th><th>GIR</th><th>3P</th><th>Ajustado</th><th>Dif.</th><th>Hcp antes</th><th>HJ</th><th>Neto</th><th>Stb</th><th>Hcp después</th></tr>`;
+  h += `<div class="wrap"><table><tr><th class="izq fx0">Jugador</th><th>Fecha</th><th class="izq">Campo</th><th>Barras</th><th>Bruto</th><th>+/- par</th><th>GIR</th><th>3P</th><th>Ajustado</th><th>Dif.</th><th>Hcp antes</th><th>HJ</th><th>Neto</th><th>Stb</th><th>Hcp después</th></tr>`;
   ACTS.slice().reverse().forEach(a=>{
-    h+=`<tr><td>${fmtFecha(a.fecha)}</td><td class="izq">${a.campo.corto}</td><td>${BARRAS_NOMBRE[a.barras]}</td><td class="izq">${jugHTML(a.apodo)}</td><td class="big num">${a.bruto}</td><td class="num">${fmtD(a.bruto-a.par)}</td><td class="num">${a.G?a.G.nGir:'—'}</td><td class="num">${a.G?a.G.n3p:'—'}</td><td class="num">${a.ags}</td><td class="num">${fmt1(a.dif)}</td><td class="num">${fmt1(a.hiAntes)}</td><td class="num">${a.ph??'—'}</td><td class="num">${a.neto??'—'}</td><td class="num">${a.stb??'—'}</td><td class="num">${fmt1(a.hiDespues)}</td></tr>`;
+    h+=`<tr><td class="izq fx0">${jugHTML(a.apodo)}</td><td>${fmtFecha(a.fecha)}</td><td class="izq">${a.campo.corto}</td><td>${BARRAS_NOMBRE[a.barras]}</td><td class="big num">${a.bruto}</td><td class="num">${fmtD(a.bruto-a.par)}</td><td class="num">${a.G?a.G.nGir:'—'}</td><td class="num">${a.G?a.G.n3p:'—'}</td><td class="num">${a.ags}</td><td class="num">${fmt1(a.dif)}</td><td class="num">${fmt1(a.hiAntes)}</td><td class="num">${a.ph??'—'}</td><td class="num">${a.neto??'—'}</td><td class="num">${a.stb??'—'}</td><td class="num">${fmt1(a.hiDespues)}</td></tr>`;
   });
   el.innerHTML = h + `</table></div><p class="nota">HJ = hándicap de juego del día (95 % del hándicap de campo). Neto y stableford solo cuando el jugador ya tenía índice antes de la vuelta. GIR = greens en regulación; 3P = tripateos (GIR y par + 1 o más).</p>`;
 }
@@ -405,13 +408,13 @@ function contarTipos(a){
 function renderStats(el){
   let h = `<h2>Stats</h2>`;
   if(!ACTS.length) return el.innerHTML = h + vacio('Aún no hay vueltas registradas.');
-  h += `<div class="wrap"><table><tr><th class="izq">Jugador</th><th>Vueltas</th><th>Media bruto</th><th>Mejor</th><th>Eagles</th><th>Birdies</th><th>Pares</th><th>Bogeys</th><th>Dobles+</th><th>Media par 3</th><th>Media par 4</th><th>Media par 5</th></tr>`;
+  h += `<div class="wrap"><table><tr><th class="izq fx0">Jugador</th><th>Vueltas</th><th>Media bruto</th><th>Mejor</th><th>Eagles</th><th>Birdies</th><th>Pares</th><th>Bogeys</th><th>Dobles+</th><th>Media par 3</th><th>Media par 4</th><th>Media par 5</th></tr>`;
   EQUIPO.forEach(j=>{
     const mis=ACTS.filter(a=>a.apodo===j.apodo); if(!mis.length) return;
     const t={ea:0,bi:0,pa:0,bo:0,db:0}; const pp={3:[],4:[],5:[]};
     mis.forEach(a=>{ const c=contarTipos(a); Object.keys(t).forEach(k=>t[k]+=c[k]); a.golpes.forEach((v,i)=>pp[a.campo.hoyos[i].par].push(v)); });
     const med = arr => arr.length ? (arr.reduce((s,x)=>s+x,0)/arr.length).toFixed(2).replace('.',',') : '—';
-    h+=`<tr><td class="izq">${jugHTML(j.apodo)}</td><td>${mis.length}</td><td class="num">${med(mis.map(a=>a.bruto))}</td><td class="num big">${Math.min(...mis.map(a=>a.bruto))}</td><td>${t.ea}</td><td>${t.bi}</td><td>${t.pa}</td><td>${t.bo}</td><td>${t.db}</td><td class="num">${med(pp[3])}</td><td class="num">${med(pp[4])}</td><td class="num">${med(pp[5])}</td></tr>`;
+    h+=`<tr><td class="izq fx0">${jugHTML(j.apodo)}</td><td>${mis.length}</td><td class="num">${med(mis.map(a=>a.bruto))}</td><td class="num big">${Math.min(...mis.map(a=>a.bruto))}</td><td>${t.ea}</td><td>${t.bi}</td><td>${t.pa}</td><td>${t.bo}</td><td>${t.db}</td><td class="num">${med(pp[3])}</td><td class="num">${med(pp[4])}</td><td class="num">${med(pp[5])}</td></tr>`;
   });
   el.innerHTML = h + `</table></div>`;
 }
@@ -436,10 +439,10 @@ function renderRecords(el){
     const m = Math.min(...mis.map(x=>x.dpar));
     return {ap:j.apodo, d:m, vs:mis.filter(x=>x.dpar===m)};
   }).filter(Boolean).sort((a,b)=>a.d-b.d);
-  h += `<h3>Mejor resultado de cada uno</h3><div class="wrap"><table><tr><th>#</th><th class="izq">Jugador</th><th>+/- par</th><th>Bruto</th><th class="izq">Dónde y cuándo</th></tr>`;
+  h += `<h3>Mejor resultado de cada uno</h3><div class="wrap"><table><tr><th class="fx0 n0">#</th><th class="izq fx1">Jugador</th><th>+/- par</th><th>Bruto</th><th class="izq">Dónde y cuándo</th></tr>`;
   let pos=0, prev=null;
   mejores.forEach((f,i)=>{ if(f.d!==prev){ pos=i+1; prev=f.d; }
-    h += `<tr><td>${pos}</td><td class="izq">${jugHTML(f.ap)}</td><td class="big num">${fmtD(f.d)}</td><td class="num">${f.vs.map(x=>x.a.bruto).join(' / ')}</td><td class="izq">${f.vs.map(pie).join('<br>')}</td></tr>`; });
+    h += `<tr><td class="fx0 n0">${pos}</td><td class="izq fx1">${jugHTML(f.ap)}</td><td class="big num">${fmtD(f.d)}</td><td class="num">${f.vs.map(x=>x.a.bruto).join(' / ')}</td><td class="izq">${f.vs.map(pie).join('<br>')}</td></tr>`; });
   h += `</table></div><p class="nota">Ordenado por resultado respecto al par, para poder comparar campos con distinto par.</p>`;
 
   // 2-5. Récords del club
@@ -794,8 +797,8 @@ function renderExecutive(el){
   h += `</div>`;
   // Tabla de vueltas
   h += `<div class="exsec" data-sec="tabla" style="display:none"><h3>Tabla de vueltas</h3><div style="overflow-x:auto"><table style="table-layout:fixed;border-collapse:collapse;font-size:11px">`
-    + `<colgroup><col style="width:70px"><col style="width:80px">${hv.map(()=>'<col style="width:22px">').join('')}<col style="width:36px"><col style="width:28px"><col style="width:28px"><col style="width:28px"><col style="width:28px"><col style="width:32px"><col style="width:28px"><col style="width:44px"></colgroup>`
-    + `<thead><tr><th style="padding:3px 4px;background:#f9fafb;border:1px solid #e5e7eb">Fecha</th><th style="padding:3px 4px;background:#f9fafb;border:1px solid #e5e7eb;text-align:left">Jugador</th>`
+    + `<colgroup><col style="width:80px"><col style="width:70px">${hv.map(()=>'<col style="width:22px">').join('')}<col style="width:36px"><col style="width:28px"><col style="width:28px"><col style="width:28px"><col style="width:28px"><col style="width:32px"><col style="width:28px"><col style="width:44px"></colgroup>`
+    + `<thead><tr><th class="fx0" style="padding:3px 4px;background:#f9fafb;border:1px solid #e5e7eb;text-align:left">Jugador</th><th style="padding:3px 4px;background:#f9fafb;border:1px solid #e5e7eb">Fecha</th>`
     + hv.map((_,i)=>`<th style="${TH_HOYO_PP}">${i+1}</th>`).join('')
     + `<th style="padding:3px 2px;background:#1e40af;color:#fff;font-size:11px;font-weight:600;border:1px solid #1e3a8a">Tot</th>`
     + `<th style="${TH_STAT_PP}" title="Birdies o mejor">🐦</th><th style="${TH_STAT_PP}" title="Pares">✅</th><th style="${TH_STAT_PP}" title="Bogeys">❌</th><th style="${TH_STAT_PP}" title="Dobles o peor">❌❌</th>`
@@ -803,8 +806,8 @@ function renderExecutive(el){
   // Más recientes arriba; dentro de cada día, de mejor a peor resultado (como pitch & putt).
   vueltas.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)||a.dpar-b.dpar).forEach((v,i)=>{
     const pars = hv.map(x=>x.par), j = jugador(v.apodo);
-    h+=`<tr style="background:${i%2===0?'#fff':'#fafafa'}"><td style="padding:3px 4px;font-size:11px;border:1px solid #e5e7eb">${fmtFecha(v.fecha)}</td>`
-      + `<td style="background:${j.color||'#eee'};font-weight:500;color:#333;padding:3px 5px;font-size:11px;border:1px solid #e5e7eb;overflow:hidden;text-overflow:ellipsis;text-align:left">${v.apodo}</td>`
+    h+=`<tr style="background:${i%2===0?'#fff':'#fafafa'}"><td class="fx0" style="background:${j.color||'#eee'};font-weight:500;color:#333;padding:3px 5px;font-size:11px;border:1px solid #e5e7eb;overflow:hidden;text-overflow:ellipsis;text-align:left">${v.apodo}</td>`
+      + `<td style="padding:3px 4px;font-size:11px;border:1px solid #e5e7eb">${fmtFecha(v.fecha)}</td>`
       + v.golpes.map((g,k)=>celdaHoyoPP(g, pars[k], v.G&&v.G.gir[k], v.G&&v.G.tp[k])).join('')
       + celdaTotalPP(v.dpar) + celdasStatsPP(v.golpes, pars)
       + `<td style="text-align:center;font-size:11px;border:1px solid #e5e7eb">${v.G?v.G.nGir:'—'}</td><td style="text-align:center;font-size:11px;border:1px solid #e5e7eb;color:${v.G&&v.G.n3p?'#991b1b':'#555'}">${v.G?v.G.n3p:'—'}</td><td style="text-align:center;font-size:11px;border:1px solid #e5e7eb">${fmt1(v.hcpDespues)}</td></tr>`; });
@@ -815,10 +818,10 @@ function renderExecutive(el){
     v.golpes.forEach((g,i)=>{ const d=g-hv[i].par; if(d<=-1) bi++; if(d<=0) po++; }); return {v, bi, po}; });
   const mejores = EQUIPO.map(j=>{ const mis=datos.filter(x=>x.v.apodo===j.apodo); if(!mis.length) return null;
     const m=Math.min(...mis.map(x=>x.v.bruto)); return {ap:j.apodo, m, vs:mis.filter(x=>x.v.bruto===m)}; }).filter(Boolean).sort((a,b)=>a.m-b.m);
-  h += `<h3>Mejor vuelta de cada uno</h3><div class="wrap"><table><tr><th>#</th><th class="izq">Jugador</th><th>Bruto</th><th>+/- par</th><th class="izq">Cuándo</th></tr>`;
+  h += `<h3>Mejor vuelta de cada uno</h3><div class="wrap"><table><tr><th class="fx0 n0">#</th><th class="izq fx1">Jugador</th><th>Bruto</th><th>+/- par</th><th class="izq">Cuándo</th></tr>`;
   let pos=0, prev=null;
   mejores.forEach((f,i)=>{ if(f.m!==prev){ pos=i+1; prev=f.m; }
-    h+=`<tr><td>${pos}</td><td class="izq">${jugHTML(f.ap)}</td><td class="big num">${f.m}</td><td class="num">${fmtD(f.m-parV)}</td><td class="izq">${f.vs.map(x=>pie(x.v)).join('<br>')}</td></tr>`; });
+    h+=`<tr><td class="fx0 n0">${pos}</td><td class="izq fx1">${jugHTML(f.ap)}</td><td class="big num">${f.m}</td><td class="num">${fmtD(f.m-parV)}</td><td class="izq">${f.vs.map(x=>pie(x.v)).join('<br>')}</td></tr>`; });
   h += `</table></div>`;
   const record = k => { const v=Math.max(...datos.map(x=>x[k])); return v>0 ? {v, quien:datos.filter(x=>x[k]===v)} : null; };
   const card = (t,r) => `<div class="card"><div class="t">${t}</div>${r?`<div class="v">${r.v}</div>${r.quien.map(x=>`<div class="s">${x.v.apodo} · ${pie(x.v)}</div>`).join('')}`:'<div class="s">—</div>'}</div>`;
@@ -885,13 +888,13 @@ function renderEquipo(el){
   const thC=thL+'text-align:center;';
   let h = `<div style="overflow-x:auto;border-radius:10px;border:1px solid #ede9fe;display:inline-block;max-width:100%">`
     + `<div style="font-size:11px;color:#555;padding:6px 10px;font-weight:600;border-bottom:1px solid #ede9fe">Equipo <span style="font-weight:400;color:#888">· ${EQUIPO.length}</span></div>`
-    + `<table style="border-collapse:collapse"><thead><tr><th style="${thC}">Nº socio</th><th style="${thL}">Nickname</th><th style="${thC}">Vueltas 18</th><th style="${thC}">Hándicap</th><th style="${thC}">Vueltas Executive</th><th style="${thC}">HCP Executive</th></tr></thead><tbody>`;
+    + `<table style="border-collapse:collapse"><thead><tr><th class="fx0" style="${thC};background:#ede9fe;width:62px;min-width:62px">Nº socio</th><th class="fx1" style="${thL};background:#ede9fe;--fx:62px">Nickname</th><th style="${thC}">Vueltas 18</th><th style="${thC}">Hándicap</th><th style="${thC}">Vueltas Executive</th><th style="${thC}">HCP Executive</th></tr></thead><tbody>`;
   EQUIPO.forEach((j,i)=>{
     const e=EST[j.apodo], x=EXEC_DATOS.est[j.apodo];
     const n18=ACTS.filter(a=>a.apodo===j.apodo).length, nEx=x?x.dpars.length:0;
     const bg=i%2===0?'#f3f4f6':'#e5e7eb';
     const badge=`<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:3px;background:${j.color||'#e5e7eb'};font-size:9px;font-weight:700;color:#333">${j.num??''}</span>`;
-    h+=`<tr style="background:${bg};cursor:pointer" data-ficha="${j.apodo}" title="Ver ficha de ${j.apodo}"><td style="${tdC}">${badge}</td><td style="${tdL}"><strong style="border-bottom:1px dotted #9ca3af">${j.apodo}</strong></td><td style="${tdC}">${n18}</td><td style="${tdC}">${fmt1(e?e.hi:null)}</td><td style="${tdC}">${nEx}</td><td style="${tdC}">${x&&x.hcp!=null?fmtD(x.hcp):'—'}</td></tr>`;
+    h+=`<tr style="background:${bg};cursor:pointer" data-ficha="${j.apodo}" title="Ver ficha de ${j.apodo}"><td class="fx0" style="${tdC};background:${bg};width:62px;min-width:62px">${badge}</td><td class="fx1" style="${tdL};background:${bg};--fx:62px"><strong style="border-bottom:1px dotted #9ca3af">${j.apodo}</strong></td><td style="${tdC}">${n18}</td><td style="${tdC}">${fmt1(e?e.hi:null)}</td><td style="${tdC}">${nEx}</td><td style="${tdC}">${x&&x.hcp!=null?fmtD(x.hcp):'—'}</td></tr>`;
   });
   el.innerHTML = h + `</tbody></table></div><p class="nota">Pulsa en un jugador para ver su ficha.</p>`;
   el.querySelectorAll('[data-ficha]').forEach(r=>r.addEventListener('click',()=>{ FICHA=r.dataset.ficha; FICHA_TIPO = vueltasJugador(FICHA,'c18').length || !vueltasJugador(FICHA,'exec').length ? 'c18' : 'exec'; FICHA_VENT='hist'; renderEquipo(el); window.scrollTo(0,0); }));
