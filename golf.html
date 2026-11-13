@@ -413,19 +413,6 @@ function contarTipos(a){
   a.golpes.forEach((v,h)=>t[claseHoyo(v-a.campo.hoyos[h].par)]++);
   return t;
 }
-function renderStats(el){
-  let h = `<h2>Stats</h2>`;
-  if(!ACTS.length) return el.innerHTML = h + vacio('Aún no hay vueltas registradas.');
-  h += `<div class="wrap"><table><tr><th class="izq fx0">Jugador</th><th>Vueltas</th><th>Media bruto</th><th>Mejor</th><th>Eagles</th><th>Birdies</th><th>Pares</th><th>Bogeys</th><th>Dobles+</th><th>Media par 3</th><th>Media par 4</th><th>Media par 5</th></tr>`;
-  EQUIPO.forEach(j=>{
-    const mis=ACTS.filter(a=>a.apodo===j.apodo); if(!mis.length) return;
-    const t={ea:0,bi:0,pa:0,bo:0,db:0}; const pp={3:[],4:[],5:[]};
-    mis.forEach(a=>{ const c=contarTipos(a); Object.keys(t).forEach(k=>t[k]+=c[k]); a.golpes.forEach((v,i)=>pp[a.campo.hoyos[i].par].push(v)); });
-    const med = arr => arr.length ? (arr.reduce((s,x)=>s+x,0)/arr.length).toFixed(2).replace('.',',') : '—';
-    h+=`<tr><td class="izq fx0">${jugHTML(j.apodo)}</td><td>${mis.length}</td><td class="num">${med(mis.map(a=>a.bruto))}</td><td class="num big">${Math.min(...mis.map(a=>a.bruto))}</td><td>${t.ea}</td><td>${t.bi}</td><td>${t.pa}</td><td>${t.bo}</td><td>${t.db}</td><td class="num">${med(pp[3])}</td><td class="num">${med(pp[4])}</td><td class="num">${med(pp[5])}</td></tr>`;
-  });
-  el.innerHTML = h + `</table></div>`;
-}
 
 // ============================================================
 // RECORDS con la misma estética y las mismas secciones que los Records de pitch & putt
@@ -1375,7 +1362,7 @@ function renderStatsPPGolf(el, F){
 }
 
 const conTitulo = (t, fn) => el => { el.innerHTML = ''; const d = document.createElement('div'); d.id = el.id+'-in'; el.appendChild(document.createElement('h2')).textContent = t; el.appendChild(d); fn(d, fuenteGolf('c18')); };
-const RENDER={tarjeta:renderTarjeta,rendimiento:conTitulo('Rendimiento',renderRendimientoGolf),versus:conTitulo('Versus',renderVersusGolf),prime:conTitulo('Prime',renderPrimeGolf),bitacora:conTitulo('Bitácora',renderBitacoraGolf),handicap:renderHandicap,stats:renderStats,tabla:renderTabla,records:renderRecords,campos:renderCampos,executive:renderExecutive,equipo:renderEquipo};
+const RENDER={tarjeta:renderTarjeta,rendimiento:conTitulo('Rendimiento',renderRendimientoGolf),versus:conTitulo('Versus',renderVersusGolf),prime:conTitulo('Prime',renderPrimeGolf),bitacora:conTitulo('Bitácora',renderBitacoraGolf),handicap:renderHandicap,stats:conTitulo('Stats',renderStatsPPGolf),tabla:renderTabla,records:renderRecords,campos:renderCampos,executive:renderExecutive,equipo:renderEquipo};
 const hecho={};
 function showTab(t){
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
