@@ -61,6 +61,7 @@ select,input{font-size:12px;padding:4px 6px;border:1px solid #d1d5db;border-radi
     <div class="tab" data-tab="records">🏆 Records</div>
     <div class="tab" data-tab="campos">🗺️ Campos</div>
     <div class="tab" data-tab="executive">⛳ Executive</div>
+    <div class="tab" data-tab="equipo">👥 Equipo</div>
   </div>
 </div>
 <div id="tab-tarjeta" class="content"></div>
@@ -70,6 +71,7 @@ select,input{font-size:12px;padding:4px 6px;border:1px solid #d1d5db;border-radi
 <div id="tab-records" class="content"></div>
 <div id="tab-campos" class="content"></div>
 <div id="tab-executive" class="content"></div>
+<div id="tab-equipo" class="content"></div>
 
 <script>
 // ============================================================
@@ -753,7 +755,108 @@ function renderExecutive(el){
   }));
 }
 
-const RENDER={tarjeta:renderTarjeta,handicap:renderHandicap,stats:renderStats,tabla:renderTabla,records:renderRecords,campos:renderCampos,executive:renderExecutive};
+
+// ============================================================
+// EQUIPO: lista de jugadores y ficha de cada uno (clic en el nombre)
+// ============================================================
+// Tipos de hoyo de la distribución, de mejor a peor. La lista manda: añadir
+// una entrada crea su línea en la tabla y su porción en el anillo.
+const TIPOS_HOYO = [
+  {k:'ea', n:'Eagles o mejor', tono:'#d4a017'},
+  {k:'bi', n:'Birdies',        tono:'#16a34a'},
+  {k:'pa', n:'Pares',          tono:'#9ca3af'},
+  {k:'bo', n:'Bogeys',         tono:'#f87171'},
+  {k:'db', n:'Dobles o peor',  tono:'#b91c1c'}
+];
+const VENTANAS_FICHA = [10, 20];   // + Histórico
+let FICHA = null;                  // apodo abierto (null = lista)
+let FICHA_TIPO = 'c18';            // 'c18' (campos de 18) | 'exec'
+let FICHA_VENT = 'hist';           // nº de vueltas o 'hist'
+// Todas las vueltas de un jugador en un mismo formato, ordenadas por fecha.
+function vueltasJugador(ap, tipo){
+  if(tipo==='exec') return EXEC_DATOS.vueltas.filter(v=>v.apodo===ap)
+    .map(v=>({fecha:v.fecha, donde:'Executive', golpes:v.golpes, pars:v.hoyos.map(x=>x.par), bruto:v.bruto, dpar:v.dpar, G:v.G}));
+  return ACTS.filter(a=>a.apodo===ap)
+    .map(a=>({fecha:a.fecha, donde:a.campo.corto, golpes:a.golpes, pars:a.campo.hoyos.map(x=>x.par), bruto:a.bruto, dpar:a.bruto-a.par, G:a.G}));
+}
+function anillo(cuentas){
+  const tot = cuentas.reduce((s,c)=>s+c.v,0); if(!tot) return '';
+  const R=54, C=2*Math.PI*R; let off=0, h='';
+  cuentas.forEach(c=>{ if(!c.v) return; const l=C*c.v/tot;
+    h+=`<circle r="${R}" cx="70" cy="70" fill="none" stroke="${c.tono}" stroke-width="22" stroke-dasharray="${l} ${C-l}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`; off+=l; });
+  return `<svg viewBox="0 0 140 140" width="140" height="140">${h}<text x="70" y="67" text-anchor="middle" font-size="18" font-weight="700">${tot}</text><text x="70" y="84" text-anchor="middle" font-size="10" fill="#777">hoyos</text></svg>`;
+}
+function grafProgresion(vs){
+  if(vs.length<2) return vacio('Hacen falta al menos 2 vueltas para ver la progresión.');
+  const W=520, H=160, P=28, ys=vs.map(v=>v.dpar), mn=Math.min(...ys), mx=Math.max(...ys), rg=(mx-mn)||1;
+  const X=i=>P+i*(W-2*P)/(vs.length-1), Y=y=>P+(mx-y)*(H-2*P)/rg;
+  const pts=vs.map((v,i)=>`${X(i)},${Y(v.dpar)}`).join(' ');
+  return `<div class="wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px">
+    <text x="4" y="${Y(mx)+4}" font-size="10" fill="#777">${fmtD(mx)}</text><text x="4" y="${Y(mn)+4}" font-size="10" fill="#777">${fmtD(mn)}</text>
+    <polyline points="${pts}" fill="none" stroke="#1a1a1a" stroke-width="2"/>
+    ${vs.map((v,i)=>`<circle cx="${X(i)}" cy="${Y(v.dpar)}" r="3.5" fill="#1a1a1a"><title>${fmtFecha(v.fecha)} · ${v.donde} · ${v.bruto} (${fmtD(v.dpar)})</title></circle>`).join('')}
+  </svg></div><p class="nota">Golpes sobre el par de cada vuelta, de la más antigua a la más reciente.</p>`;
+}
+function renderEquipo(el){
+  if(FICHA) return renderFicha(el, FICHA);
+  let h = `<h2>Equipo</h2><div class="wrap"><table><tr><th>Nº</th><th class="izq">Jugador</th><th>Vueltas 18</th><th>Hándicap</th><th>Vueltas Executive</th><th>HCP Executive</th></tr>`;
+  EQUIPO.forEach(j=>{
+    const e=EST[j.apodo], x=EXEC_DATOS.est[j.apodo];
+    const n18=ACTS.filter(a=>a.apodo===j.apodo).length, nEx=x?x.dpars.length:0;
+    h+=`<tr style="cursor:pointer" data-ficha="${j.apodo}"><td>${j.num??''}</td><td class="izq"><span style="border-bottom:1px dotted #9ca3af">${jugHTML(j.apodo)}</span></td><td>${n18}</td><td class="num">${fmt1(e?e.hi:null)}</td><td>${nEx}</td><td class="num">${x&&x.hcp!=null?fmtD(x.hcp):'—'}</td></tr>`;
+  });
+  el.innerHTML = h + `</table></div><p class="nota">Pulsa en un jugador para ver su ficha.</p>`;
+  el.querySelectorAll('[data-ficha]').forEach(r=>r.addEventListener('click',()=>{ FICHA=r.dataset.ficha; FICHA_TIPO = vueltasJugador(FICHA,'c18').length || !vueltasJugador(FICHA,'exec').length ? 'c18' : 'exec'; FICHA_VENT='hist'; renderEquipo(el); window.scrollTo(0,0); }));
+}
+function renderFicha(el, ap){
+  const j=jugador(ap), e=EST[ap], x=EXEC_DATOS.est[ap];
+  const v18=vueltasJugador(ap,'c18'), vEx=vueltasJugador(ap,'exec');
+  const todas = FICHA_TIPO==='exec' ? vEx : v18;
+  const vs = FICHA_VENT==='hist' ? todas : todas.slice(-FICHA_VENT);
+  const foto = j.foto ? `<img src="${j.foto}" alt="" style="width:100%;max-width:200px;aspect-ratio:1;object-fit:cover;border-radius:12px;display:block;margin:0 auto">`
+    : `<div style="width:100%;max-width:200px;aspect-ratio:1;border-radius:12px;background:${j.color||'#eee'};display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:56px;font-weight:700;opacity:.6">${ap.slice(0,2).toUpperCase()}</div>`;
+  const fila = (k,v) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #f0f0f0"><span style="font-size:11px;color:#6b7280">${k}</span><span style="font-weight:700">${v}</span></div>`;
+  const btn = (on,attr,txt,apagado) => `<button ${attr} ${apagado?'disabled':''} style="font-size:11px;padding:4px 10px;border:1px solid ${on?'#1a1a1a':'#d1d5db'};background:${on?'#1a1a1a':'#fff'};color:${on?'#fff':(apagado?'#bbb':'#374151')};border-radius:6px;cursor:${apagado?'default':'pointer'}">${txt}</button>`;
+  let h = `<div class="fila"><button id="fiVolver" style="font-size:12px;padding:5px 12px;border:1px solid #e5e7eb;background:#fff;border-radius:7px;cursor:pointer">← Equipo</button><span style="font-weight:700;font-size:16px">${ap}</span></div>`;
+  h += `<div class="cards">`;
+  h += `<div class="card">${foto}<div style="margin-top:10px">${fila('Nº de socio', j.num??'—')}${fila('Vueltas campos de 18', v18.length)}${fila('Vueltas Executive', vEx.length)}</div></div>`;
+  const nHi = e?e.difs.length:0, nEx = vEx.length;
+  h += `<div class="card"><div class="t">Hándicaps</div>`
+    + fila('Hándicap (WHS)', e&&e.hi!=null ? fmt1(e.hi) : (nHi<3?`— <span style="font-weight:400;color:#999;font-size:11px">faltan ${3-nHi} vueltas</span>`:'—'))
+    + fila('HCP Executive', x&&x.hcp!=null ? fmtD(x.hcp) : `— <span style="font-weight:400;color:#999;font-size:11px">faltan ${EXEC.VENTANA-nEx} vueltas</span>`);
+  const mejor = l => { if(!l.length) return '—'; const m=Math.min(...l.map(v=>v.bruto)); const b=l.filter(v=>v.bruto===m);
+    return `${m} (${fmtD(b[0].dpar)}) <span style="font-weight:400;color:#999;font-size:11px">${b.map(v=>fmtFecha(v.fecha)+(l===v18?' · '+v.donde:'')).join(', ')}</span>`; };
+  h += `<div class="t" style="margin-top:12px">Mejor vuelta</div>` + fila('Campos de 18', mejor(v18)) + fila('Executive', mejor(vEx)) + `</div>`;
+  h += `</div>`;
+  // Selector de tipo de campo y ventana
+  h += `<h3>Distribución de golpes</h3><div class="fila">`
+    + btn(FICHA_TIPO==='c18','data-ti="c18"','Campos de 18') + btn(FICHA_TIPO==='exec','data-ti="exec"','Executive')
+    + `<span style="width:10px"></span>`
+    + VENTANAS_FICHA.map(n=>btn(FICHA_VENT===n,`data-ve="${n}"`,`Últimas ${n}`, todas.length<n)).join('')
+    + btn(FICHA_VENT==='hist','data-ve="hist"','Histórico') + `</div>`;
+  if(!vs.length) h += vacio(FICHA_TIPO==='exec' ? 'Aún no tiene vueltas en el Executive.' : 'Aún no tiene vueltas en campos de 18.');
+  else {
+    const cnt = {}; TIPOS_HOYO.forEach(t=>cnt[t.k]=0);
+    vs.forEach(v=>v.golpes.forEach((g,i)=>cnt[claseHoyo(g-v.pars[i])]++));
+    const tot = Object.values(cnt).reduce((s,n)=>s+n,0);
+    h += `<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center"><div class="wrap"><table><tr><th class="izq">Tipo</th><th>Hoyos</th><th>%</th><th>Por vuelta</th></tr>`
+      + TIPOS_HOYO.map(t=>`<tr><td class="izq"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${t.tono};margin-right:6px"></span>${t.n}</td><td class="num">${cnt[t.k]}</td><td class="num">${Math.round(100*cnt[t.k]/tot)} %</td><td class="num">${(cnt[t.k]/vs.length).toFixed(1).replace('.',',')}</td></tr>`).join('')
+      + `</table></div>${anillo(TIPOS_HOYO.map(t=>({v:cnt[t.k], tono:t.tono})))}</div>`;
+    h += `<p class="nota">${vs.length} vuelta${vs.length===1?'':'s'} · media ${(vs.reduce((s,v)=>s+v.bruto,0)/vs.length).toFixed(1).replace('.',',')} golpes (${fmtD(r1(vs.reduce((s,v)=>s+v.dpar,0)/vs.length))}) · se juega a triple bogey.</p>`;
+  // GIR y tripateos de la selección (solo vueltas que traen GIR)
+  const conG = vs.filter(v=>v.G);
+  const sG = conG.reduce((s,v)=>s+v.G.nGir,0), s3 = conG.reduce((s,v)=>s+v.G.n3p,0);
+  const med = (s,n) => n ? (s/n).toFixed(1).replace('.',',') : '—';
+  h += `<h3>GIR y tripateos</h3><div class="cards"><div class="card">${fila('GIR', conG.length?sG:'—')}${fila('GIR por vuelta', med(sG,conG.length))}${fila('% GIR', conG.length?Math.round(100*sG/(conG.length*18))+' %':'—')}${fila('Tripateos (3P)', conG.length?s3:'—')}${fila('3P por vuelta', med(s3,conG.length))}<div class="s">${conG.length} vuelta${conG.length===1?'':'s'} con GIR apuntado en la selección</div></div></div>`;
+    h += `<h3>📈 Progresión</h3>` + grafProgresion(vs);
+  }
+  el.innerHTML = h;
+  el.querySelector('#fiVolver').addEventListener('click',()=>{ FICHA=null; renderEquipo(el); });
+  el.querySelectorAll('[data-ti]').forEach(b=>b.addEventListener('click',()=>{ FICHA_TIPO=b.dataset.ti; FICHA_VENT='hist'; renderFicha(el,ap); }));
+  el.querySelectorAll('[data-ve]').forEach(b=>b.addEventListener('click',()=>{ if(b.disabled) return; FICHA_VENT=b.dataset.ve==='hist'?'hist':+b.dataset.ve; renderFicha(el,ap); }));
+}
+
+const RENDER={tarjeta:renderTarjeta,handicap:renderHandicap,stats:renderStats,tabla:renderTabla,records:renderRecords,campos:renderCampos,executive:renderExecutive,equipo:renderEquipo};
 const hecho={};
 function showTab(t){
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
