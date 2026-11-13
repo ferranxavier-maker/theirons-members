@@ -821,7 +821,7 @@ function renderExecutive(el){
   h += `<h3>Mejor vuelta de cada uno</h3><div class="wrap"><table><tr><th class="fx0 n0">#</th><th class="izq fx1">Jugador</th><th>Bruto</th><th>+/- par</th><th class="izq">Cuándo</th></tr>`;
   let pos=0, prev=null;
   mejores.forEach((f,i)=>{ if(f.m!==prev){ pos=i+1; prev=f.m; }
-    h+=`<tr><td class="fx0 n0">${pos}</td><td class="izq fx1">${jugHTML(f.ap)}</td><td class="big num">${f.m}</td><td class="num">${fmtD(f.m-parV)}</td><td class="izq">${f.vs.map(x=>pie(x.v)).join('<br>')}</td></tr>`; });
+    h+=`<tr><td class="fx0 n0">${pos}</td><td class="izq fx1">${f.ap}</td><td class="big num">${f.m}</td><td class="num">${fmtD(f.m-parV)}</td><td class="izq">${f.vs.map(x=>pie(x.v)).join('<br>')}</td></tr>`; });
   h += `</table></div>`;
   const record = k => { const v=Math.max(...datos.map(x=>x[k])); return v>0 ? {v, quien:datos.filter(x=>x[k]===v)} : null; };
   const card = (t,r) => `<div class="card"><div class="t">${t}</div>${r?`<div class="v">${r.v}</div>${r.quien.map(x=>`<div class="s">${x.v.apodo} · ${pie(x.v)}</div>`).join('')}`:'<div class="s">—</div>'}</div>`;
