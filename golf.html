@@ -59,9 +59,13 @@ select,input{font-size:12px;padding:4px 6px;border:1px solid #d1d5db;border-radi
   <div class="tabs">
     <div class="tab" data-tab="tarjeta" title="Nueva tarjeta">➕</div>
     <div class="tab active" data-tab="handicap">📉 Handicap</div>
-    <div class="tab" data-tab="stats">📊 Stats</div>
     <div class="tab" data-tab="tabla">📋 Tabla</div>
+    <div class="tab" data-tab="rendimiento">📊 Rendimiento</div>
     <div class="tab" data-tab="records">🏆 Records</div>
+    <div class="tab" data-tab="stats">📊 Stats</div>
+    <div class="tab" data-tab="versus">⚡ Versus</div>
+    <div class="tab" data-tab="prime">⭐ Prime</div>
+    <div class="tab" data-tab="bitacora">📓 Bitácora</div>
     <div class="tab" data-tab="campos">🗺️ Campos</div>
     <div class="tab" data-tab="equipo">👥 Equipo</div>
     <div class="tab" data-tab="executive"><span style="display:inline-block;background:#dc2626;color:#fff;font-weight:600;padding:2px 8px;border-radius:5px">Executive</span></div>
@@ -73,6 +77,10 @@ select,input{font-size:12px;padding:4px 6px;border:1px solid #d1d5db;border-radi
 <div id="tab-tabla" class="content"></div>
 <div id="tab-records" class="content"></div>
 <div id="tab-campos" class="content"></div>
+<div id="tab-rendimiento" class="content"></div>
+<div id="tab-versus" class="content"></div>
+<div id="tab-prime" class="content"></div>
+<div id="tab-bitacora" class="content"></div>
 <div id="tab-executive" class="content"></div>
 <div id="tab-equipo" class="content"></div>
 
@@ -823,7 +831,8 @@ function renderExecutive(el){
   const sinVueltas = !vueltas.length;
   const pie = v => fmtFecha(v.fecha);
   // Subpestañas: Hándicap · Tabla · Records
-  const SUB = [['hcp','📉 Hándicap'],['tabla','📋 Tabla'],['records','🏆 Records']];
+  const SUB = [['hcp','📉 Hándicap'],['tabla','📋 Tabla'],['rend','📊 Rendimiento'],['records','🏆 Records'],['stats','📊 Stats'],['versus','⚡ Versus'],['prime','⭐ Prime'],['bitacora','📓 Bitácora']];
+  const SUB_PP = {rend:renderRendimientoGolf, stats:renderStatsPPGolf, versus:renderVersusGolf, prime:renderPrimeGolf, bitacora:renderBitacoraGolf};
   h += `<div class="tabs" style="border-bottom:1px solid #e5e7eb;margin-bottom:6px">${SUB.map(([k,t],i)=>`<div class="tab exsub${i?'':' active'}" data-sub="${k}">${t}</div>`).join('')}</div>`;
   if(sinVueltas){
     h += SUB.map(([k],i)=>`<div class="exsec" data-sec="${k}"${i?' style="display:none"':''}>${vacio('Aún no hay vueltas en el Executive.')}</div>`).join('');
@@ -854,9 +863,12 @@ function renderExecutive(el){
   h += `</tbody></table></div><p class="nota"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a"></span> GIR (green en regulación) · <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#dc2626"></span> GIR con tripateo (par + 1 o más).</p></div>`;
   // Records: mismas secciones y estética que los Records de pitch & putt
   h += `<div class="exsec" data-sec="records" style="display:none">` + recordsPP(vueltasJugadorTodas('exec'), 'Executive') + `</div>`;
+  // Rendimiento · Stats · Versus · Prime · Bitácora: mismas funciones que en golf, con la fuente del Executive
+  h += Object.keys(SUB_PP).map(k=>`<div class="exsec" data-sec="${k}" id="ex-${k}" style="display:none"></div>`).join('');
   }
   el.innerHTML = h;
   enlazarCasillas(el);
+  if(!sinVueltas){ const FX = fuenteGolf('exec'); Object.entries(SUB_PP).forEach(([k,fn])=>fn(document.getElementById('ex-'+k), FX)); }
   el.querySelectorAll('.exsub').forEach(b=>b.addEventListener('click',()=>{
     el.querySelectorAll('.exsub').forEach(x=>x.classList.toggle('active',x===b));
     el.querySelectorAll('.exsec').forEach(x=>x.style.display = x.dataset.sec===b.dataset.sub ? '' : 'none');
@@ -976,7 +988,394 @@ function renderFicha(el, ap){
   el.querySelectorAll('[data-ve]').forEach(b=>b.addEventListener('click',()=>{ if(b.disabled) return; FICHA_VENT=b.dataset.ve==='hist'?'hist':+b.dataset.ve; renderFicha(el,ap); }));
 }
 
-const RENDER={tarjeta:renderTarjeta,handicap:renderHandicap,stats:renderStats,tabla:renderTabla,records:renderRecords,campos:renderCampos,executive:renderExecutive,equipo:renderEquipo};
+// ============================================================
+// PESTAÑAS COPIADAS DE PITCH & PUTT: Rendimiento · Stats · Versus · Prime · Bitácora
+// Misma estética que las de pitch & putt (renderRendimientoGlobal, renderStatsGlobal,
+// renderVersus, renderPrimeGlobal, renderBitacoraGlobal). Sirven para los campos de 18
+// (fuente 'c18', hándicap WHS) y para el Executive (fuente 'exec', HCP Executive).
+// Todo va sobre el par de cada hoyo. En golf no hay contextos, temporadas ni oxidación,
+// así que esos filtros y columnas no existen aquí.
+// ============================================================
+const UMBRAL_N1_GOLF = 2;   // foto del domingo: cuenta si al menos 2 jugadores tienen hándicap
+const _isoDate = iso => { const [y,m,d] = iso.split('-').map(Number); return new Date(y, m-1, d, 12, 0, 0); };
+const _fF = d => String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+const _colorJ = ap => jugador(ap).color || '#eee';
+const _JUGADORES = () => EQUIPO.map(j => j.apodo);
+
+// Fuente de datos de cada ámbito
+function fuenteGolf(tipo){
+  const exec = tipo === 'exec';
+  const acts = vueltasJugadorTodas(tipo).map(v => {
+    let bir=0, par=0, bog=0, dbl=0;
+    v.golpes.forEach((g,i) => { const d = g - v.pars[i]; if(d<=-1) bir++; else if(d===0) par++; else if(d===1) bog++; else dbl++; });
+    return {...v, jugador:v.apodo, fechaD:_isoDate(v.fecha), bir, par, bog, dbl};
+  }).sort((a,b) => a.fechaD - b.fechaD);
+  const F = {
+    tipo, exec, acts,
+    ambito: exec ? 'Executive' : 'campos de 18',
+    hcpLbl: exec ? 'HCP Executive' : 'Índice WHS',
+    ventana: exec ? EXEC.VENTANA : WHS.VENTANA,
+    actsDe: ap => acts.filter(a => a.jugador === ap),
+    fmtHcp: v => { if(v==null) return '—'; const r = Math.round(v*10)/10;
+      if(exec) return r===0 ? 'PAR' : (r>0?'+':'−') + Math.abs(r).toFixed(1).replace('.',',');
+      return r.toFixed(1).replace('.',','); },
+  };
+  // Hándicap de un jugador al cierre de una fecha, con la ventana que lo forma.
+  F.hcpEn = (ap, fc) => {
+    if(exec){
+      const mis = EXEC_DATOS.vueltas.filter(v => v.apodo === ap && _isoDate(v.fecha) <= fc);
+      if(!mis.length) return {hcp:null, n:0, used:[]};
+      const used = mis.slice(-EXEC.VENTANA).map(v => ({fecha:v.fecha, campo:'Executive', valor:v.dpar, cuenta:true}));
+      return {hcp: mis[mis.length-1].hcpDespues, n: mis.length, used, pie:'Media de las últimas '+EXEC.VENTANA+' vueltas'};
+    }
+    const mis = ACTS.filter(a => a.apodo === ap && a.dif != null && _isoDate(a.fecha) <= fc);
+    if(!mis.length) return {hcp:null, n:0, used:[]};
+    const ult = mis.slice(-WHS.VENTANA);
+    const t = WHS.TABLA[ult.length];
+    const mejores = t ? ult.map((a,i)=>({i, d:a.dif})).sort((x,y)=>x.d-y.d).slice(0, t[0]).map(x=>x.i) : [];
+    const used = ult.map((a,i) => ({fecha:a.fecha, campo:a.campo.corto, valor:a.dif, cuenta:mejores.includes(i)}));
+    const pie = t ? 'Media de los '+t[0]+' mejores diferenciales de '+ult.length+(t[1]?' con ajuste '+(t[1]>0?'+':'')+t[1]:'') : '';
+    return {hcp: mis[mis.length-1].hiDespues, n: mis.length, used, pie};
+  };
+  F.hcpActual = ap => exec ? (EXEC_DATOS.est[ap] ? EXEC_DATOS.est[ap].hcp : null) : (EST[ap] ? EST[ap].hi : null);
+  return F;
+}
+
+// Foto de cada domingo a las 23:59 (como la Bitácora de pitch & putt)
+function historicoN1Golf(F){
+  if(!F.acts.length) return null;
+  const primera = F.acts[0].fechaD;
+  const d0 = new Date(primera.getFullYear(), primera.getMonth(), primera.getDate(), 23, 59, 0);
+  d0.setDate(d0.getDate() + ((7 - d0.getDay()) % 7));
+  const _now = new Date();
+  const hoy = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate(), 23, 59, 59);
+  const historialN1 = [];
+  for(let d = new Date(d0); d <= hoy; d.setDate(d.getDate() + 7)){
+    const fc = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 0);
+    const ranking = _JUGADORES().map(j => ({jugador:j, ...F.hcpEn(j, fc)})).filter(r => r.hcp != null).sort((a,b) => a.hcp - b.hcp);
+    if(ranking.length < UMBRAL_N1_GOLF) continue;
+    const minR = Math.round(ranking[0].hcp*100);
+    historialN1.push({ts:fc.getTime(), n1s:ranking.filter(r => Math.round(r.hcp*100) === minR).map(r => r.jugador), hcp:ranking[0].hcp, ranking});
+  }
+  return historialN1.length ? {historialN1} : null;
+}
+
+// Popup de la ventana de hándicap (Bitácora y Prime)
+function popupVentanaGolf(F, id, titulo, jugadorAp, ts){
+  const data = F.hcpEn(jugadorAp, new Date(ts));
+  if(!data.used.length) return;
+  const fmtV = v => (v>=0?'+':'') + Number(v).toFixed(F.exec?0:1).replace('.',',');
+  let html = `<div style="font-weight:700;font-size:14px;color:#1a1a1a;margin-bottom:10px;padding-right:30px">${titulo} · ${jugadorAp} <span style="font-weight:500;color:#6b7280;font-size:12px">· corte ${_fF(new Date(ts))}</span></div>`;
+  html += '<table style="width:100%;border-collapse:collapse;font-size:11.5px"><thead><tr style="background:#f9fafb;color:#6b7280;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px">'
+    + '<th style="text-align:center;padding:6px 4px;border-bottom:1px solid #e5e7eb;width:24px">#</th>'
+    + '<th style="text-align:left;padding:6px 6px;border-bottom:1px solid #e5e7eb">Fecha</th>'
+    + '<th style="text-align:left;padding:6px 6px;border-bottom:1px solid #e5e7eb">Campo</th>'
+    + `<th style="text-align:right;padding:6px 6px;border-bottom:1px solid #e5e7eb">${F.exec?'Δ':'Diferencial'}</th></tr></thead><tbody>`;
+  data.used.forEach((a,i) => {
+    const bg = i%2===0 ? '#fff' : '#fafafa';
+    html += `<tr style="background:${bg}${a.cuenta?'':';opacity:.45;text-decoration:line-through'}"${a.cuenta?'':' title="No cuenta (no está entre los mejores)"'}>`
+      + `<td style="text-align:center;padding:6px 4px;color:#9ca3af">${i+1}</td>`
+      + `<td style="text-align:left;padding:6px 6px;font-family:monospace">${fmtFecha(a.fecha).slice(0,5)}</td>`
+      + `<td style="text-align:left;padding:6px 6px;color:#374151">${a.campo}</td>`
+      + `<td style="text-align:right;padding:6px 6px;font-family:monospace;font-weight:600">${fmtV(a.valor)}</td></tr>`;
+  });
+  html += `</tbody><tfoot><tr style="background:#fef9c3;font-weight:700"><td colspan="3" style="text-align:right;padding:8px 6px;color:#854d0e">${data.pie||''} = ${F.hcpLbl}</td>`
+    + `<td style="text-align:right;padding:8px 6px;font-family:monospace;color:#854d0e">${F.fmtHcp(data.hcp)}</td></tr></tfoot></table>`;
+  document.getElementById(id+'-body').innerHTML = html;
+  document.getElementById(id).style.display = 'flex';
+}
+function popupVentanaHTML(id){
+  return `<div id="${id}" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;padding:20px;max-width:680px;width:94%;max-height:85vh;overflow:hidden;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25),0 0 0 1px rgba(0,0,0,0.08);z-index:9999">
+    <div onclick="document.getElementById('${id}').style.display='none'" style="position:absolute;top:10px;right:14px;font-size:18px;color:#9ca3af;cursor:pointer;line-height:1;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#f3f4f6">×</div>
+    <div id="${id}-body" style="overflow-y:auto;padding-right:4px;padding-top:4px"></div></div>`;
+}
+
+// ── 📓 BITÁCORA ──
+function renderBitacoraGolf(el, F){
+  const hist = historicoN1Golf(F);
+  let h = '<div style="max-width:720px;margin:0 auto;padding:20px 16px">';
+  h += `<div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;font-weight:600;margin-bottom:6px">📓 Bitácora · ${F.hcpLbl}</div>`;
+  h += `<div style="font-size:14px;color:#374151;margin-bottom:18px">Foto semanal del ${F.hcpLbl}: cada <b>domingo a las 23:59</b> se toma una instantánea y se corona al nº1 de la semana. Solo cuenta si hay <b>≥${UMBRAL_N1_GOLF} jugadores</b> con hándicap.</div>`;
+  if(!hist){
+    el.innerHTML = h + `<div style="padding:24px;background:#fef9c3;border:1px solid #fde68a;border-radius:10px;text-align:center;font-size:13px;color:#854d0e">Aún no se ha alcanzado el umbral de ≥${UMBRAL_N1_GOLF} jugadores con hándicap. Sigue jugando.</div></div>`;
+    return;
+  }
+  const popId = el.id + '-pop';
+  const rows = hist.historialN1;
+  for(let k = rows.length-1; k >= 0; k--){
+    const fecha = new Date(rows[k].ts);
+    let t = '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px;margin-bottom:14px">';
+    t += `<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:10px">${k+1}ª semana (foto domingo ${_fF(fecha)})</div>`;
+    t += '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f9fafb;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.4px">'
+      + '<th style="text-align:center;padding:8px 6px;border-bottom:1px solid #e5e7eb;width:30px">#</th>'
+      + '<th style="text-align:left;padding:8px 6px;border-bottom:1px solid #e5e7eb">Jugador</th>'
+      + '<th style="text-align:center;padding:8px 6px;border-bottom:1px solid #e5e7eb">n</th>'
+      + `<th style="text-align:right;padding:8px 6px;border-bottom:1px solid #e5e7eb">${F.hcpLbl}</th></tr></thead><tbody>`;
+    rows[k].ranking.forEach((r,i) => {
+      const camp = i === 0, bgRow = camp ? '#fef9c3' : (i%2===0 ? '#fff' : '#fafafa');
+      t += `<tr style="background:${bgRow};cursor:pointer" data-pj="${r.jugador}" data-pts="${rows[k].ts}" title="Ver ventana">`
+        + `<td style="text-align:center;padding:8px 6px;font-weight:700;color:${camp?'#854d0e':'#6b7280'}">${i+1}</td>`
+        + `<td style="text-align:left;padding:8px 6px"><div style="display:flex;align-items:center;gap:8px"><div style="width:24px;height:24px;border-radius:5px;background:${_colorJ(r.jugador)};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#333">${r.jugador.slice(0,3)}</div><span style="font-weight:${camp?700:500}">${r.jugador}</span></div></td>`
+        + `<td style="text-align:center;padding:8px 6px;color:#6b7280">${r.n}</td>`
+        + `<td style="text-align:right;padding:8px 6px;font-family:monospace;font-weight:700;color:${camp?'#854d0e':'#1a1a1a'}">${F.fmtHcp(r.hcp)}</td></tr>`;
+    });
+    h += t + '</tbody></table></div>';
+  }
+  el.innerHTML = h + popupVentanaHTML(popId) + '</div>';
+  el.querySelectorAll('[data-pj]').forEach(r => r.addEventListener('click', () => popupVentanaGolf(F, popId, 'Ventana', r.dataset.pj, +r.dataset.pts)));
+}
+
+// ── ⭐ PRIME ──
+function primePorCampoGolf(F, campo){
+  const out = {};
+  _JUGADORES().forEach(j => {
+    const serie = F.actsDe(j).filter(a => a.campo === campo);
+    if(serie.length < F.ventana){ out[j] = null; return; }
+    let mejor = null;
+    for(let i = 0; i + F.ventana <= serie.length; i++){
+      const win = serie.slice(i, i + F.ventana);
+      const avg = win.reduce((s,a) => s + a.dpar, 0) / F.ventana;
+      if(!mejor || avg < mejor.hcp) mejor = {hcp:avg, ts:win[win.length-1].fechaD.getTime()};
+    }
+    out[j] = mejor;
+  });
+  return out;
+}
+function renderPrimeGolf(el, F){
+  if(el._primeCampo === undefined) el._primeCampo = '';
+  const campoKey = el._primeCampo;
+  const campos = F.exec ? [] : [...new Set(F.acts.map(a => a.campo))].map(c => ({key:c, vueltas:F.acts.filter(a => a.campo === c).length})).sort((a,b) => b.vueltas - a.vueltas);
+  const selId = el.id + '-sel';
+  let selHtml = '';
+  if(!F.exec){
+    selHtml = '<div style="display:flex;align-items:center;gap:8px;margin:0 8px 14px;flex-wrap:wrap"><span style="font-size:11px;color:#6b7280;font-weight:600">Campo</span>'
+      + `<select id="${selId}" style="font-size:12px;padding:3px 6px;border:1px solid #e5e7eb;border-radius:6px"><option value=""${campoKey?'':' selected'}>Global</option>`
+      + campos.map(c => `<option value="${c.key}"${campoKey===c.key?' selected':''}>${c.key} (${c.vueltas})</option>`).join('') + '</select></div>';
+  }
+  const montar = () => { const s = document.getElementById(selId); if(s) s.addEventListener('change', e => { el._primeCampo = e.target.value; renderPrimeGolf(el, F); }); };
+  const fmtP = v => { if(v==null) return '—'; const r = Math.round(v*10)/10; return r===0 ? 'PAR' : (r>0?'+':'−') + Math.abs(r).toFixed(1).replace('.',','); };
+  const tile = (d, valTxt, sub, clic) => {
+    const tiene = d.hcp != null;
+    const valColor = tiene ? (d.hcp < 0 ? '#15803d' : d.hcp === 0 ? '#1a1a1a' : '#9a3412') : '#9ca3af';
+    return `<div ${clic&&tiene?`data-pj="${d.jugador}" data-pts="${d.ts}"`:''} style="position:relative;background:${_colorJ(d.jugador)};border-radius:14px;padding:12px 8px 14px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:108px;opacity:${tiene?'1':'0.45'};${clic&&tiene?'cursor:pointer':''}">`
+      + `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#1a1a1a;margin-bottom:6px">${d.jugador}</div>`
+      + `<div style="display:flex;align-items:center;justify-content:center"><span style="font-family:'Fraunces',serif;font-size:40px;font-weight:700;color:${valColor};line-height:1;letter-spacing:-0.5px">${valTxt}</span></div>`
+      + `<div style="font-size:9px;color:#6b7280;margin-top:6px;letter-spacing:0.2px">${sub}</div></div>`;
+  };
+  if(campoKey){
+    const best = primePorCampoGolf(F, campoKey);
+    const datos = _JUGADORES().map(j => ({jugador:j, hcp: best[j] ? best[j].hcp : null, ts: best[j] ? best[j].ts : null}));
+    const conH = datos.filter(d => d.hcp != null).sort((a,b) => a.hcp - b.hcp);
+    let hh = '<div style="max-width:720px;margin:0 auto;padding:20px 12px">'
+      + `<div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;font-weight:600;margin-bottom:6px;padding:0 8px">⭐ Prime · ${campoKey}</div>`
+      + `<div style="font-size:13px;color:#374151;margin:0 8px 14px">La mejor racha de ${F.ventana} vueltas seguidas de cada jugador en este campo, en golpes sobre el par.</div>` + selHtml;
+    if(!conH.length){ el.innerHTML = hh + `<div style="font-size:12px;color:#9ca3af;padding:20px 8px">Todavía nadie ha completado ${F.ventana} vueltas aquí.</div></div>`; montar(); return; }
+    hh += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 4px">'
+      + conH.concat(datos.filter(d => d.hcp == null)).map(d => tile(d, fmtP(d.hcp), d.hcp!=null ? _fF(new Date(d.ts)) : 'sin ventana', false)).join('') + '</div></div>';
+    el.innerHTML = hh; montar(); return;
+  }
+  const hist = historicoN1Golf(F);
+  if(!hist){
+    el.innerHTML = `<div style="max-width:600px;margin:0 auto;padding:40px 20px;text-align:center"><div style="font-size:48px;margin-bottom:16px">⭐</div>`
+      + `<div style="font-size:18px;font-weight:600;color:#1a1a1a;margin-bottom:8px">Prime · ${F.hcpLbl}</div>`
+      + `<div style="font-size:13px;color:#6b7280">Se activará cuando ${UMBRAL_N1_GOLF} jugadores tengan hándicap.</div></div>` + (selHtml ? '<div style="max-width:600px;margin:0 auto">'+selHtml+'</div>' : '');
+    montar(); return;
+  }
+  const best = {};
+  hist.historialN1.forEach(row => row.ranking.forEach(r => { if(!best[r.jugador] || r.hcp < best[r.jugador].hcp) best[r.jugador] = {hcp:r.hcp, ts:row.ts}; }));
+  const datos = _JUGADORES().map(j => ({jugador:j, hcp: best[j] ? best[j].hcp : null, ts: best[j] ? best[j].ts : null}));
+  const ordenados = datos.filter(d => d.hcp != null).sort((a,b) => a.hcp - b.hcp).concat(datos.filter(d => d.hcp == null));
+  const popId = el.id + '-pop';
+  let h = '<div style="max-width:720px;margin:0 auto;padding:20px 12px">'
+    + `<div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;font-weight:600;margin-bottom:6px;padding:0 8px">⭐ Prime · ${F.hcpLbl}</div>`
+    + `<div style="font-size:13px;color:#374151;margin:0 8px 14px">El mejor hándicap que cada jugador ha tenido en un cierre de domingo. Click para ver esa ventana.</div>` + selHtml
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 4px">'
+    + ordenados.map(d => tile(d, F.fmtHcp(d.hcp), d.hcp!=null ? _fF(new Date(d.ts)) : 'sin ventana', true)).join('') + '</div>';
+  el.innerHTML = h + popupVentanaHTML(popId) + '</div>';
+  el.querySelectorAll('[data-pj]').forEach(t => t.addEventListener('click', () => popupVentanaGolf(F, popId, '⭐ Mejor ventana', t.dataset.pj, +t.dataset.pts)));
+  montar();
+}
+
+// ── ⚡ VERSUS ──
+function renderVersusGolf(el, F){
+  const J = _JUGADORES();
+  const duelosDe = (jA, jB) => {
+    const pk = a => a.fecha + '|' + a.campo;
+    const mapB = new Map(); F.actsDe(jB).forEach(b => { if(!mapB.has(pk(b))) mapB.set(pk(b), b); });
+    const out = [];
+    F.actsDe(jA).forEach(a => { const b = mapB.get(pk(a)); if(!b) return;
+      out.push({key:a.fecha, fechaTxt:fmtFecha(a.fecha), campo:a.campo, totA:a.bruto, totB:b.bruto, dA:a.dpar, dB:b.dpar,
+        ganador: a.bruto < b.bruto ? jA : b.bruto < a.bruto ? jB : 'empate'}); });
+    return out.sort((x,y) => y.key.localeCompare(x.key));
+  };
+  if(!el._vA){
+    el._vA = J.includes('Capi') ? 'Capi' : J[0];
+    const rival = J.filter(j => j !== el._vA).map(j => ({j, n:duelosDe(el._vA, j).length})).sort((a,b) => b.n - a.n)[0];
+    el._vB = rival ? rival.j : J[1];
+  }
+  const jA = el._vA, jB = el._vB;
+  const V_NEUTRO='#fef9c3', V_NEUTRO_BD='#fde68a', V_WIN='#c8f0dc', V_WIN_BD='#4ade80', V_LOSE='#f8d0d0', V_LOSE_BD='#f87171', V_TIE='#e5e7eb', V_TIE_BD='#d1d5db';
+  const opts = sel => J.map(j => `<option value="${j}"${j===sel?' selected':''}>${j}</option>`).join('');
+  const selector = (lado, j) => `<div style="position:relative;width:100%"><div style="padding:9px 10px;border:2px solid ${V_NEUTRO_BD};border-radius:10px;background:${V_NEUTRO};font-weight:700;font-size:15px;color:#1a1a1a;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j} ▾</div>`
+    + `<select data-vs="${lado}" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px">${opts(j)}</select></div>`;
+  const cab = `<div style="text-align:center;margin-bottom:6px"><div style="font-size:16px;font-weight:800;color:#1a1a1a">⚡ VERSUS</div><div style="font-size:11px;color:#9ca3af">Cara a cara — todas las partidas jugadas juntos · ${F.ambito}</div></div>`
+    + `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin:12px 0"><div>${selector('A',jA)}</div><button data-vswap="1" title="Intercambiar" style="border:1px solid #e5e7eb;background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer;font-size:14px">⇄</button><div>${selector('B',jB)}</div></div>`;
+  const enlazar = () => {
+    el.querySelectorAll('[data-vs]').forEach(s => s.addEventListener('change', () => { if(s.dataset.vs==='A') el._vA = s.value; else el._vB = s.value; renderVersusGolf(el, F); }));
+    const sw = el.querySelector('[data-vswap]'); if(sw) sw.addEventListener('click', () => { const t = el._vA; el._vA = el._vB; el._vB = t; renderVersusGolf(el, F); });
+  };
+  if(jA === jB){ el.innerHTML = `<div style="max-width:640px;margin:0 auto">${cab}<div style="text-align:center;color:#9ca3af;padding:40px 20px;font-size:14px">Elige dos jugadores distintos para ver el cara a cara.</div></div>`; enlazar(); return; }
+  const duelos = duelosDe(jA, jB), total = duelos.length;
+  let winA=0, winB=0, draw=0; const porCampo = {};
+  duelos.forEach(d => { if(d.ganador===jA) winA++; else if(d.ganador===jB) winB++; else draw++;
+    const pc = porCampo[d.campo] = porCampo[d.campo] || {n:0,a:0,b:0,e:0}; pc.n++;
+    if(d.ganador===jA) pc.a++; else if(d.ganador===jB) pc.b++; else pc.e++; });
+  const pctA = total ? winA/total*100 : 0, pctE = total ? draw/total*100 : 0, pctB = total ? winB/total*100 : 0;
+  let rachaA=0, rachaB=0, curA=0, curB=0;
+  [...duelos].reverse().forEach(d => { if(d.ganador===jA){ curA++; curB=0; rachaA=Math.max(rachaA,curA); } else if(d.ganador===jB){ curB++; curA=0; rachaB=Math.max(rachaB,curB); } else { curA=0; curB=0; } });
+  const marcador = `<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin:18px 0 10px">`
+    + `<div style="text-align:center"><div style="font-size:44px;font-weight:800;line-height:1;color:#1a1a1a">${winA}</div><div style="font-size:11px;color:#6b7280;margin-top:4px;font-weight:600">${jA.toUpperCase()}</div></div>`
+    + `<div style="text-align:center;padding:0 6px"><div style="font-size:12px;color:#9ca3af;font-weight:700;letter-spacing:1px">VS</div><div style="font-size:13px;color:#6b7280;margin-top:2px">${draw} <span style="font-size:10px">emp.</span></div></div>`
+    + `<div style="text-align:center"><div style="font-size:44px;font-weight:800;line-height:1;color:#1a1a1a">${winB}</div><div style="font-size:11px;color:#6b7280;margin-top:4px;font-weight:600">${jB.toUpperCase()}</div></div></div>`;
+  const barra = `<div style="display:flex;height:44px;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;margin-bottom:6px">`
+    + `<div style="width:${pctA}%;background:${V_WIN};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#166534">${pctA>=12?pctA.toFixed(0)+'%':''}</div>`
+    + `<div style="width:${pctE}%;background:${V_TIE}"></div>`
+    + `<div style="width:${pctB}%;background:${V_LOSE};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#991b1b">${pctB>=12?pctB.toFixed(0)+'%':''}</div></div>`
+    + `<div style="display:flex;justify-content:space-between;font-size:11px;color:#9ca3af;margin-bottom:16px"><span>${jA}</span><span>${total} duelo${total===1?'':'s'}</span><span>${jB}</span></div>`;
+  let veredicto;
+  if(!total) veredicto = 'Estos dos aún no han coincidido en ninguna partida.';
+  else if(winA>winB) veredicto = `<b>${jA}</b> domina el cara a cara por ${winA}–${winB}${draw?` (${draw} emp.)`:''}.`;
+  else if(winB>winA) veredicto = `<b>${jB}</b> domina el cara a cara por ${winB}–${winA}${draw?` (${draw} emp.)`:''}.`;
+  else veredicto = `Igualdad absoluta: ${winA}–${winB}${draw?` con ${draw} empate${draw===1?'':'s'}`:''}.`;
+  const td = 'padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px';
+  const th = 'padding:6px 8px;font-size:11px;color:#6b7280;font-weight:600';
+  const desglose = total ? `<div style="font-weight:600;font-size:12px;color:#333;margin:20px 0 8px">🗺️ Por campo</div><table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #eee;border-radius:8px;overflow:hidden"><thead><tr style="background:#fafafa"><th style="${th};text-align:left">Campo</th><th style="${th};text-align:center">Duelos</th><th style="${th};text-align:center">${jA}</th><th style="${th};text-align:center">Emp.</th><th style="${th};text-align:center">${jB}</th></tr></thead><tbody>`
+    + Object.entries(porCampo).sort((a,b) => b[1].n - a[1].n).map(([c,pc]) => `<tr><td style="${td};color:#333">${c}</td><td style="${td};text-align:center;color:#6b7280">${pc.n}</td><td style="${td};text-align:center;font-weight:700;color:#1a1a1a">${pc.a}</td><td style="${td};text-align:center;color:#9ca3af">${pc.e}</td><td style="${td};text-align:center;font-weight:700;color:#1a1a1a">${pc.b}</td></tr>`).join('') + '</tbody></table>' : '';
+  const chip = (d, jug, tot, delta) => { const gano = d.ganador===jug, emp = d.ganador==='empate';
+    return `<div style="flex:1;text-align:center;padding:6px 4px;background:${emp?V_TIE:gano?V_WIN:V_LOSE};border:1px solid ${emp?V_TIE_BD:gano?V_WIN_BD:V_LOSE_BD};border-radius:8px;${gano?'box-shadow:0 0 0 2px #1a1a1a inset':''}"><div style="font-size:16px;font-weight:800;color:#1a1a1a">${tot}</div><div style="font-size:10px;color:#6b7280">${delta>0?'+'+delta:delta===0?'PAR':delta}</div></div>`; };
+  const timeline = total ? `<div style="font-weight:600;font-size:12px;color:#333;margin:20px 0 10px">📜 Todos los duelos <span style="color:#9ca3af;font-weight:400">(el marco negro = ganador)</span></div>`
+    + duelos.map(d => `<div style="display:flex;align-items:stretch;gap:8px;margin-bottom:8px"><div style="width:74px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center"><div style="font-size:11px;font-weight:600;color:#333">${d.fechaTxt}</div><div style="font-size:10px;color:#9ca3af">${d.campo}</div></div>${chip(d,jA,d.totA,d.dA)}<div style="width:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#9ca3af;font-weight:700">${d.ganador==='empate'?'=':'›‹'}</div>${chip(d,jB,d.totB,d.dB)}</div>`).join('') : '';
+  const racha = (j, r) => `<div style="flex:1;background:${V_NEUTRO};border:1px solid ${V_NEUTRO_BD};border-radius:10px;padding:10px;text-align:center"><div style="font-size:10px;color:#6b7280;font-weight:600">Mejor racha de ${j}</div><div style="font-size:20px;font-weight:800;color:#1a1a1a">${r} <span style="font-size:11px;font-weight:600;color:#6b7280">seguida${r===1?'':'s'}</span></div></div>`;
+  const best = total ? `<div style="display:flex;gap:10px;margin-bottom:4px">${racha(jA,rachaA)}${racha(jB,rachaB)}</div>` : '';
+  el.innerHTML = `<div style="max-width:640px;margin:0 auto">${cab}${marcador}${barra}<div style="text-align:center;font-size:13px;color:#374151;margin-bottom:14px">${veredicto}</div>${best}${desglose}${timeline}<div style="text-align:center;color:#cbd5e1;font-size:10px;margin:22px 0 8px">THE IRONS · Versus · gana el menor total del día</div></div>`;
+  enlazar();
+}
+
+// ── 📊 RENDIMIENTO ──
+const REND_CAT_GOLF = [
+  {k:'HIO',     col:'#7c3aed', bg:'#f5f3ff', test:(g,d)=>g===1},
+  {k:'Birdie',  col:'#15803d', bg:'#f0fdf4', test:(g,d)=>g!==1 && d<=-1},
+  {k:'Par',     col:'#374151', bg:'#f9fafb', test:(g,d)=>g!==1 && d===0},
+  {k:'Bogey',   col:'#c2410c', bg:'#fff7ed', test:(g,d)=>g!==1 && d===1},
+  {k:'Doble+',  col:'#b91c1b', bg:'#fef2f2', test:(g,d)=>g!==1 && d>=2},
+];
+function _rendContarGolf(acts){
+  const c = REND_CAT_GOLF.map(() => 0); let tot = 0;
+  acts.forEach(a => a.golpes.forEach((g,i) => { const k = REND_CAT_GOLF.findIndex(x => x.test(g, g - a.pars[i])); if(k>=0){ c[k]++; tot++; } }));
+  return {c, tot};
+}
+function _rendTablaGolf(tbl, F){
+  const {datos, hcps, titulo, sub, hcpLbl} = tbl._rend; const sort = tbl._rendSort;
+  const filas = _JUGADORES().map(j => { const d = datos[j]; if(!d || !d.tot) return null;
+    const pct = d.c.map(x => x/d.tot*100); return {j, pct, c:d.c, ofensivo:pct[0]+pct[1], hcp: typeof hcps[j]==='number' ? hcps[j] : null}; }).filter(Boolean);
+  const val = r => sort.col==='ofensivo' ? r.ofensivo : sort.col==='hcp' ? r.hcp : r.pct[sort.col];
+  filas.sort((a,b) => { const va = val(a), vb = val(b); if(va==null && vb==null) return 0; if(va==null) return 1; if(vb==null) return -1;
+    if(sort.col==='hcp') return sort.dir==='desc' ? va-vb : vb-va; return sort.dir==='desc' ? vb-va : va-vb; });
+  const flecha = k => sort.col!==k ? '' : (sort.dir==='desc' ? ' ▾' : ' ▴');
+  const header = `<tr style="background:#fafafa"><th style="padding:6px 8px;text-align:left;font-size:11px;color:#6b7280;font-weight:600" class="fx0">Jugador</th>`
+    + `<th data-rs="hcp" style="padding:6px 8px;text-align:center;font-size:11px;color:#0f766e;font-weight:600;cursor:pointer;user-select:none">${hcpLbl}${flecha('hcp')}</th>`
+    + REND_CAT_GOLF.map((c,ci) => `<th data-rs="${ci}" style="padding:6px 6px;text-align:center;font-size:11px;color:${c.col};font-weight:600;cursor:pointer;user-select:none;${sort.col===ci?'background:'+c.bg:''}">${c.k}${flecha(ci)}</th>`).join('') + '</tr>';
+  const body = filas.map(r => `<tr style="border-bottom:1px solid #f0f0f0"><td class="fx0" style="padding:5px 8px"><div style="display:inline-flex;align-items:center;gap:6px"><span style="width:20px;height:20px;border-radius:4px;background:${_colorJ(r.j)};display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#333">${r.j.slice(0,3)}</span><span style="font-size:12px;font-weight:500">${r.j}</span></div></td>`
+    + `<td style="padding:5px 8px;text-align:center;font-size:12px;font-weight:700;color:${r.hcp==null?'#cbd5e1':'#0f766e'};background:#f0fdfa">${F.fmtHcp(r.hcp)}</td>`
+    + r.pct.map((p,ci) => `<td style="padding:5px 6px;text-align:center;font-size:12px;background:${REND_CAT_GOLF[ci].bg}"><div style="display:flex;align-items:baseline;justify-content:center;gap:5px"><span style="font-weight:700;color:${REND_CAT_GOLF[ci].col}">${p.toFixed(1)}%</span><span style="font-size:11px;color:#9ca3af;font-weight:400">${r.c[ci]}</span></div></td>`).join('') + '</tr>').join('');
+  tbl.innerHTML = `<div style="max-width:640px"><div style="font-weight:600;font-size:13px;color:#1a1a1a;margin-bottom:2px">${titulo}</div><div style="font-size:11px;color:#9ca3af;margin-bottom:12px">${sub}</div>`
+    + `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #eee;border-radius:8px;overflow:hidden"><thead>${header}</thead><tbody>${body}</tbody></table></div>`
+    + `<div style="font-size:10px;color:#cbd5e1;margin-top:10px">Sobre el par de cada hoyo: HIO = 1 golpe · Birdie = par − 1 o mejor · Par · Bogey = par + 1 · Doble+ = par + 2 o más. Toca una columna para ordenar.</div></div>`;
+  tbl.querySelectorAll('[data-rs]').forEach(t => t.addEventListener('click', () => { const k = t.dataset.rs==='hcp' ? 'hcp' : +t.dataset.rs;
+    if(sort.col===k) sort.dir = sort.dir==='desc' ? 'asc' : 'desc'; else { sort.col = k; sort.dir = 'desc'; } _rendTablaGolf(tbl, F); }));
+}
+function renderRendimientoGolf(el, F){
+  const tblId = el.id + '-tbl';
+  // Campos que ya tienen muestra: algún jugador con la ventana completa allí
+  const campos = F.exec ? [] : [...new Set(F.acts.map(a => a.campo))].map(c => ({key:c, vueltas:F.acts.filter(a => a.campo===c).length,
+      ok:_JUGADORES().some(j => F.actsDe(j).filter(a => a.campo===c).length >= F.ventana)})).filter(c => c.ok).sort((a,b) => b.vueltas - a.vueltas);
+  let h = '<div style="max-width:640px">';
+  if(!F.exec){
+    h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"><span style="font-size:11px;color:#6b7280;font-weight:600">Campo</span>'
+      + `<select id="${tblId}-sel" style="font-size:12px;padding:3px 6px;border:1px solid #e5e7eb;border-radius:6px"><option value="">Todos los campos</option>`
+      + campos.map(c => `<option value="${c.key}">${c.key} (${c.vueltas})</option>`).join('') + '</select></div>';
+  }
+  el.innerHTML = h + `<div id="${tblId}"></div></div>`;
+  const tbl = document.getElementById(tblId);
+  tbl._rendSort = {col:'ofensivo', dir:'desc'};
+  const calcular = campoKey => {
+    const datos = {}, hcps = {};
+    _JUGADORES().forEach(j => {
+      let eleg = F.actsDe(j); if(campoKey) eleg = eleg.filter(a => a.campo === campoKey);
+      if(campoKey && eleg.length < F.ventana){ datos[j] = {c:[], tot:0}; hcps[j] = null; return; }
+      const usadas = eleg.slice().sort((a,b) => b.fechaD - a.fechaD).slice(0, F.ventana);
+      datos[j] = _rendContarGolf(usadas);
+      hcps[j] = campoKey ? (usadas.length >= F.ventana ? usadas.reduce((s,a) => s + a.dpar, 0)/usadas.length : null) : F.hcpActual(j);
+    });
+    const sub = 'Distribución de resultados por hoyo — últimas ' + F.ventana + (campoKey ? ' vueltas en ' + campoKey : ' vueltas, ' + F.ambito);
+    tbl._rend = {datos, hcps, titulo:'📊 Rendimiento · ' + F.hcpLbl, sub, hcpLbl: campoKey ? 'HCP campo' : (F.exec ? 'HCP' : 'Índice')};
+    _rendTablaGolf(tbl, F);
+    if(!Object.values(datos).some(d => d.tot > 0))
+      tbl.innerHTML = '<div style="font-size:12px;color:#9ca3af;padding:16px 8px">' + (campoKey ? 'Nadie ha completado aún ' + F.ventana + ' vueltas en ' + campoKey + '.' : 'Aún no hay vueltas en ' + F.ambito + '.') + '</div>';
+  };
+  const sel = document.getElementById(tblId + '-sel');
+  if(sel) sel.addEventListener('change', () => calcular(sel.value));
+  calcular('');
+}
+
+// ── 📊 STATS (mismo formato que Stats de pitch & putt) ──
+function renderStatsPPGolf(el, F){
+  const ACTSx = F.acts;
+  const totalPartidos = ACTSx.length, totalHoyos = ACTSx.reduce((s,a) => s + a.golpes.length, 0);
+  const totalBirdies = ACTSx.reduce((s,a) => s + a.bir, 0), totalBajopar = ACTSx.filter(a => a.dpar < 0).length;
+  const ratioHoyo = totalBirdies > 0 ? (totalHoyos/totalBirdies).toFixed(1) : '—';
+  const pctBajo = totalPartidos > 0 ? (totalBajopar/totalPartidos*100).toFixed(1) : '0.0';
+  const totalJornadas = new Set(ACTSx.map(a => a.fecha)).size;
+  const desde = totalPartidos ? _fF(ACTSx[0].fechaD) : '—';
+  const hio = []; ACTSx.forEach(a => a.golpes.forEach((g,i) => { if(g===1) hio.push({jugador:a.jugador, campo:a.campo, fecha:a.fechaD, hoyo:i+1}); }));
+  const subHIO = !hio.length ? 'ninguno aún ⛳' : hio.length===1 ? hio[0].jugador+' · '+hio[0].campo+' H'+hio[0].hoyo : [...new Set(hio.map(d => d.jugador))].join(', ');
+  const popId = el.id + '-hio';
+  const kpi = (bg, bd, t, v, col, s) => `<div style="background:${bg};border-radius:12px;padding:14px 16px;border:1px solid ${bd}"><div style="font-size:11px;color:#555;margin-bottom:4px">${t}</div><div style="font-size:32px;font-weight:700;color:${col};line-height:1">${v}</div><div style="font-size:10px;color:#aaa;margin-top:4px">${s}</div></div>`;
+  let h = '<div style="max-width:600px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">'
+    + kpi('#f0fdf4','#bbf7d0','Total partidos',totalPartidos,'#15803d','desde '+desde)
+    + kpi('#eff6ff','#bfdbfe','Total hoyos jugados',totalHoyos.toLocaleString('es-ES'),'#1d4ed8','18 hoyos × '+totalPartidos+' rondas')
+    + kpi('#fdf4ff','#e9d5ff','Jornadas disputadas',totalJornadas,'#7c3aed','desde '+desde)
+    + kpi('#f0fdf4','#bbf7d0','Rondas bajo par',totalBajopar,'#65d000',pctBajo+'% de las rondas')
+    + kpi('#fefce8','#fde68a','Total birdies',totalBirdies,'#854d0e','1 birdie cada '+ratioHoyo+' hoyos')
+    + `<div${hio.length?` data-hioopen="1"`:''} style="background:#fff7ed;border-radius:12px;padding:14px 16px;border:1px solid #fed7aa${hio.length?';cursor:pointer':''}"><div style="font-size:11px;color:#555;margin-bottom:4px">Holes in one</div><div style="font-size:32px;font-weight:700;color:#ea580c;line-height:1">${hio.length}</div><div style="font-size:10px;color:#aaa;margin-top:4px">${subHIO}${hio.length?' · ver detalle':''}</div></div>`
+    + '</div>';
+  h += `<div id="${popId}" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center"><div data-stop="1" style="background:#fff;border-radius:16px;padding:20px;max-width:420px;width:90%;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)"><div style="font-weight:700;font-size:14px;color:#1a1a1a;margin-bottom:14px">⛳ Holes in one</div><div style="max-height:400px;overflow-y:auto;padding-right:4px">`
+    + (hio.map((d,i) => `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:${i%2===0?'#fff7ed':'#fff'};border-radius:8px;margin-bottom:4px;border:1px solid #fed7aa66"><div style="font-size:11px;color:#666;font-family:monospace;min-width:74px">${_fF(d.fecha)}</div><div style="width:22px;height:22px;border-radius:5px;background:${_colorJ(d.jugador)};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#333;flex-shrink:0">${d.jugador.slice(0,3)}</div><div style="flex:1;font-size:12px;color:#1a1a1a"><b>${d.jugador}</b> · ${d.campo} <b>H${d.hoyo}</b></div></div>`).join('') || '<div style="font-size:12px;color:#9ca3af;padding:10px 0">Ninguno aún.</div>')
+    + `</div><div data-hioclose="1" style="margin-top:14px;text-align:center;padding:8px;background:#f3f4f6;border-radius:8px;font-size:12px;color:#555;cursor:pointer">Cerrar</div></div></div>`;
+  const sd = {};
+  _JUGADORES().forEach(p => { const g = F.actsDe(p); if(!g.length) return;
+    const avg = k => (g.reduce((s,a) => s + a[k], 0)/g.length).toFixed(1);
+    sd[p] = {n:g.length, avgTotal:avg('dpar'), avgBir:avg('bir'), avgPar:avg('par'), avgBog:avg('bog'), avgDbl:avg('dbl'),
+      best:Math.min(...g.map(a => a.dpar)), worst:Math.max(...g.map(a => a.dpar)), totalBir:g.reduce((s,a) => s + a.bir, 0)}; });
+  const sg = v => v >= 0 ? '+'+v : v;
+  const sorted = _JUGADORES().filter(p => sd[p]).sort((a,b) => parseFloat(sd[a].avgTotal) - parseFloat(sd[b].avgTotal));
+  h += `<div style="font-weight:500;margin-bottom:8px;color:#555;font-size:12px">Media por jugador (partidos completados)</div><div style="overflow-x:auto"><table style="width:100%"><thead><tr><th style="text-align:left" class="fx0">Jugador</th><th>Part.</th><th>Media</th><th>Mejor</th><th>Peor</th><th>🐦med</th><th>🐦tot</th><th>✅med</th><th>❌med</th><th>❌❌med</th></tr></thead><tbody>`;
+  sorted.forEach((p,i) => { const d = sd[p], at = parseFloat(d.avgTotal);
+    const mc = at < 4 ? '#15803d' : at < 7 ? '#1a1a1a' : '#b91c1c';
+    h += `<tr style="background:${i%2===0?'#fff':'#fafafa'}"><td class="fx0" style="background:${_colorJ(p)};font-weight:500;color:#333">${p}</td><td style="text-align:center">${d.n}</td><td style="text-align:center;font-weight:500;color:${mc}">${at>=0?'+'+d.avgTotal:d.avgTotal}</td><td style="text-align:center;color:#15803d">${sg(d.best)}</td><td style="text-align:center;color:#b91c1c">${sg(d.worst)}</td><td style="text-align:center">${d.avgBir}</td><td style="text-align:center">${d.totalBir}</td><td style="text-align:center">${d.avgPar}</td><td style="text-align:center">${d.avgBog}</td><td style="text-align:center">${d.avgDbl}</td></tr>`; });
+  h += '</tbody></table></div>';
+  const byF = {}; ACTSx.forEach(a => { (byF[a.fecha] = byF[a.fecha] || {ts:a.fechaD.getTime(), f:_fF(a.fechaD), scores:[]}).scores.push(a.dpar); });
+  h += '<div style="margin-top:24px;margin-bottom:8px;font-weight:600;font-size:13px;color:#1a1a1a">Media por jornada</div><div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Fecha</th><th>Jug.</th><th>Media</th><th>Mejor</th><th>Peor</th></tr></thead><tbody>';
+  Object.values(byF).sort((a,b) => b.ts - a.ts).forEach((j,i) => { const avg = (j.scores.reduce((s,v) => s+v, 0)/j.scores.length).toFixed(1), av = parseFloat(avg);
+    h += `<tr style="background:${i%2===0?'#fff':'#fafafa'}"><td style="font-size:11px;color:#666">${j.f}</td><td style="text-align:center">${j.scores.length}</td><td style="text-align:center;font-weight:500;color:${av<5?'#15803d':av<8?'#1a1a1a':'#b91c1c'}">${av>=0?'+'+avg:avg}</td><td style="text-align:center;color:#15803d">${sg(Math.min(...j.scores))}</td><td style="text-align:center;color:#b91c1c">${sg(Math.max(...j.scores))}</td></tr>`; });
+  el.innerHTML = h + '</tbody></table></div></div>';
+  const pop = document.getElementById(popId);
+  const ab = el.querySelector('[data-hioopen]'); if(ab) ab.addEventListener('click', () => pop.style.display = 'flex');
+  pop.addEventListener('click', e => { if(!e.target.closest('[data-stop]') || e.target.closest('[data-hioclose]')) pop.style.display = 'none'; });
+}
+
+const conTitulo = (t, fn) => el => { el.innerHTML = ''; const d = document.createElement('div'); d.id = el.id+'-in'; el.appendChild(document.createElement('h2')).textContent = t; el.appendChild(d); fn(d, fuenteGolf('c18')); };
+const RENDER={tarjeta:renderTarjeta,rendimiento:conTitulo('Rendimiento',renderRendimientoGolf),versus:conTitulo('Versus',renderVersusGolf),prime:conTitulo('Prime',renderPrimeGolf),bitacora:conTitulo('Bitácora',renderBitacoraGolf),handicap:renderHandicap,stats:renderStats,tabla:renderTabla,records:renderRecords,campos:renderCampos,executive:renderExecutive,equipo:renderEquipo};
 const hecho={};
 function showTab(t){
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
