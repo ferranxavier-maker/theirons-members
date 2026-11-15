@@ -8222,12 +8222,37 @@ function renderRecordsGlobal(el){
       .filter(a => !a.abandono && a.fecha instanceof Date && a.fecha >= FECHA_INICIO_GLOBAL_CALC && Array.isArray(a.hoyos) && !_campoExcluido(a.campo));
     if(!acts.length) return { jugador, best:0, fecha:null, campo:null, ctx:null };
     let best=0, mejorAct=null;
+    const maxDe = a => { let max=0, cur=0; a.hoyos.forEach(v => { if(v!==null && v<=2){ cur++; if(cur>max) max=cur; } else if(v!==null){ cur=0; } }); return max; };
     acts.forEach(a => {
-      let max=0, cur=0;
-      a.hoyos.forEach(v => { if(v!==null && v<=2){ cur++; if(cur>max) max=cur; } else if(v!==null){ cur=0; } });
+      const max = maxDe(a);
       if(max>best || (max===best && mejorAct && a.fecha>mejorAct.fecha)){ best=max; mejorAct=a; }
     });
-    return { jugador, best, fecha:mejorAct?mejorAct.fecha:null, campo:mejorAct?(mejorAct.campo||'—'):null, ctx:mejorAct?(CTX_LABEL[mejorAct.src]||mejorAct.src):null };
+    const veces = best>0 ? _vecesRecord(acts.filter(a => maxDe(a)===best)) : [];
+    return { jugador, best, veces, fecha:mejorAct?mejorAct.fecha:null, campo:mejorAct?(mejorAct.campo||'—'):null, ctx:mejorAct?(CTX_LABEL[mejorAct.src]||mejorAct.src):null };
+  }
+  // Todas las veces que un jugador ha firmado su récord (más reciente primero),
+  // como texto «fecha · campo · contexto». Lo usan Más birdies y Birdies consecutivos.
+  function _vecesRecord(lista){
+    return [...lista].sort((a,b) => b.fecha - a.fecha)
+      .map(a => fFecha(a.fecha)+' · '+(a.campo||'—')+' · '+(CTX_LABEL[a.src]||a.src));
+  }
+  // Fila de récord: con una sola vez, fecha · campo · contexto; si lo ha
+  // igualado varias veces, «(n)» pulsable que despliega todas debajo.
+  function _filaRecord(p, i){
+    const multi = p.veces && p.veces.length > 1;
+    const info = p.fecha ? fFecha(p.fecha)+' · '+p.campo+' · '+p.ctx : '—';
+    const der = multi
+      ? '<span class="bchip" data-info="'+p.veces.join('&#10;')+'" onclick="_batidoToggle(this)" style="font-size:11px;font-weight:600;color:#15803d;margin-right:4px;cursor:pointer;text-decoration:underline">('+p.veces.length+')</span>'
+      : '<div style="font-size:10px;color:#aaa;margin-right:4px">'+info+'</div>';
+    return '<div class="bwrap" style="margin-bottom:4px">'
+      +'<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:'+(i===0?'#f0fdf4':'#fff')+';border-radius:7px;border:1px solid #eee">'
+      +'<div style="width:26px;height:26px;border-radius:5px;background:'+(COLORS[p.jugador]||'#eee')+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#333;flex-shrink:0">'+p.jugador.slice(0,3)+'</div>'
+      +'<div style="flex:1;font-weight:500;font-size:12px">'+p.jugador+'</div>'
+      +der
+      +'<div style="font-weight:700;font-size:16px;color:#15803d;min-width:28px;text-align:right">'+p.best+'</div>'
+      +'</div>'
+      +'<div class="bdet" style="display:none;white-space:pre-line;font-size:10px;color:#555;margin-top:3px;padding:5px 10px;background:#f9fafb;border:1px solid #eee;border-radius:6px"></div>'
+      +'</div>';
   }
   // Birdie = hoyo ≤2. Mejor ronda (más birdies) de cada jugador, desde 01/01/2026.
   const masBirdiesData = PLAYERS.map(jugador => {
@@ -8236,19 +8261,12 @@ function renderRecordsGlobal(el){
     if(!acts.length) return { jugador, best:0, fecha:null, campo:null, ctx:null };
     let mejor = acts[0];
     acts.forEach(a => { if(a.bir > mejor.bir || (a.bir===mejor.bir && a.fecha>mejor.fecha)) mejor = a; });
-    return { jugador, best:mejor.bir, fecha:mejor.fecha, campo:mejor.campo||'—', ctx:CTX_LABEL[mejor.src]||mejor.src };
+    const veces = mejor.bir>0 ? _vecesRecord(acts.filter(a => a.bir===mejor.bir)) : [];
+    return { jugador, best:mejor.bir, veces, fecha:mejor.fecha, campo:mejor.campo||'—', ctx:CTX_LABEL[mejor.src]||mejor.src };
   }).sort((a,b) => b.best - a.best || a.jugador.localeCompare(b.jugador));
   h += '<div style="margin-bottom:18px">';
   h += '<div style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:12px;margin-bottom:8px"><span style="font-size:14px;line-height:1">🐦</span> Más birdies en un partido <span style="font-weight:400;color:#aaa;font-size:10px;margin-left:4px">· todos los contextos</span></div>';
-  masBirdiesData.forEach((p,i) => {
-    const info = p.fecha ? fFecha(p.fecha)+' · '+p.campo+' · '+p.ctx : '—';
-    h += '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:'+(i===0?'#f0fdf4':'#fff')+';border-radius:7px;margin-bottom:4px;border:1px solid #eee">'
-      +'<div style="width:26px;height:26px;border-radius:5px;background:'+(COLORS[p.jugador]||'#eee')+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#333;flex-shrink:0">'+p.jugador.slice(0,3)+'</div>'
-      +'<div style="flex:1;font-weight:500;font-size:12px">'+p.jugador+'</div>'
-      +'<div style="font-size:10px;color:#aaa;margin-right:4px">'+info+'</div>'
-      +'<div style="font-weight:700;font-size:16px;color:#15803d;min-width:28px;text-align:right">'+p.best+'</div>'
-      +'</div>';
-  });
+  masBirdiesData.forEach((p,i) => { h += _filaRecord(p, i); });
   h += '</div>'; // cierra sección Más birdies en un partido
 
   // ── 2) Birdies consecutivos (🐦🐦) — DENTRO de un mismo partido ──────
@@ -8260,15 +8278,7 @@ function renderRecordsGlobal(el){
     .sort((a,b) => b.best - a.best || a.jugador.localeCompare(b.jugador));
   h += '<div style="margin-bottom:18px">';
   h += '<div style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:12px;margin-bottom:8px"><span style="font-size:14px;line-height:1">🐦🐦</span> Birdies consecutivos <span style="font-weight:400;color:#aaa;font-size:10px;margin-left:4px">· mismo partido · todos los contextos</span></div>';
-  birdiesConsecData.forEach((p,i) => {
-    const info = p.fecha ? fFecha(p.fecha)+' · '+p.campo+' · '+p.ctx : '—';
-    h += '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:'+(i===0?'#f0fdf4':'#fff')+';border-radius:7px;margin-bottom:4px;border:1px solid #eee">'
-      +'<div style="width:26px;height:26px;border-radius:5px;background:'+(COLORS[p.jugador]||'#eee')+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#333;flex-shrink:0">'+p.jugador.slice(0,3)+'</div>'
-      +'<div style="flex:1;font-weight:500;font-size:12px">'+p.jugador+'</div>'
-      +'<div style="font-size:10px;color:#aaa;margin-right:4px">'+info+'</div>'
-      +'<div style="font-weight:700;font-size:16px;color:#15803d;min-width:28px;text-align:right">'+p.best+'</div>'
-      +'</div>';
-  });
+  birdiesConsecData.forEach((p,i) => { h += _filaRecord(p, i); });
   h += '</div>'; // cierra sección Birdies consecutivos
   }
 
