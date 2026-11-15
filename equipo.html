@@ -7975,6 +7975,8 @@ function renderMiscelania(el){
   el.innerHTML = h;
 }
 
+// Récord «Birdies en N partidos seguidos»: tamaño de la ventana.
+const VENTANA_BIRDIES = 10;
 function renderRecordsGlobal(el){
   const FECHA_INICIO_GLOBAL_CALC = new Date(2026, 0, 1);
   // Campos excluidos de TODAS las secciones de récords globales (distorsionan).
@@ -8299,6 +8301,53 @@ function renderRecordsGlobal(el){
       +'</div>';
   });
   h += '</div>'; // cierra sección Partidos seguidos haciendo birdie
+
+  // ── Birdies en N partidos seguidos (🐦🔟) ────────────────────────────
+  // Máximo de birdies sumados en una ventana de VENTANA_BIRDIES partidos
+  // seguidos (por fecha), todos los contextos, desde 01/01/2026, salvo
+  // CAMPOS_EXCLUIDOS_RECORDS. Los abandonos SÍ cuentan como partido (con los
+  // birdies de los hoyos jugados), para que abandonar no salga a cuenta.
+  // Si varias ventanas empatan en el máximo → «(n)» con todos los tramos.
+  {
+  const ventanaBirdiesData = PLAYERS.map(jugador => {
+    const acts = _recopilarActuacionesGlobal(jugador)
+      .filter(a => a.fecha instanceof Date && a.fecha >= FECHA_INICIO_GLOBAL_CALC && typeof a.bir === 'number' && !_campoExcluido(a.campo))
+      .sort((a,b) => a.fecha - b.fecha);
+    if(acts.length < VENTANA_BIRDIES) return null;
+    let best = -1, tramos = [];
+    for(let i=0; i + VENTANA_BIRDIES <= acts.length; i++){
+      const v = acts.slice(i, i + VENTANA_BIRDIES);
+      const suma = v.reduce((t,a) => t + a.bir, 0);
+      const tramo = fFecha(v[0].fecha) + '→' + fFecha(v[v.length-1].fecha);
+      if(suma > best){ best = suma; tramos = [tramo]; }
+      else if(suma === best){ tramos.push(tramo); }
+    }
+    return { jugador, best, tramos: tramos.reverse() };
+  }).filter(Boolean)
+    .sort((a,b) => b.best - a.best || a.jugador.localeCompare(b.jugador));
+  h += '<div style="margin-bottom:18px">';
+  h += '<div style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:12px;margin-bottom:8px"><span style="font-size:14px;line-height:1">🐦🔟</span> Birdies en '+VENTANA_BIRDIES+' partidos seguidos <span style="font-weight:400;color:#aaa;font-size:10px;margin-left:4px">· todos los contextos · por fecha · abandonos incluidos</span></div>';
+  if(!ventanaBirdiesData.length){
+    h += '<div style="font-size:11px;color:#aaa;padding:8px">Nadie llega aún a '+VENTANA_BIRDIES+' partidos.</div>';
+  } else {
+    ventanaBirdiesData.forEach((p,i) => {
+      const multi = p.tramos.length > 1;
+      const der = multi
+        ? '<span class="bchip" data-info="'+p.tramos.join('&#10;')+'" onclick="_batidoToggle(this)" style="font-size:11px;font-weight:600;color:#15803d;margin-right:4px;cursor:pointer;text-decoration:underline">('+p.tramos.length+')</span>'
+        : '<div style="font-size:10px;color:#aaa;margin-right:4px">'+p.tramos[0]+'</div>';
+      h += '<div class="bwrap" style="margin-bottom:4px">'
+        +'<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:'+(i===0?'#f0fdf4':'#fff')+';border-radius:7px;border:1px solid #eee">'
+        +'<div style="width:26px;height:26px;border-radius:5px;background:'+(COLORS[p.jugador]||'#eee')+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#333;flex-shrink:0">'+p.jugador.slice(0,3)+'</div>'
+        +'<div style="flex:1;font-weight:500;font-size:12px">'+p.jugador+'</div>'
+        +der
+        +'<div style="font-weight:700;font-size:16px;color:#15803d;min-width:28px;text-align:right">'+p.best+'</div>'
+        +'</div>'
+        +'<div class="bdet" style="display:none;white-space:pre-line;font-size:10px;color:#555;margin-top:3px;padding:5px 10px;background:#f9fafb;border:1px solid #eee;border-radius:6px"></div>'
+        +'</div>';
+    });
+  }
+  h += '</div>'; // cierra sección Birdies en N partidos seguidos
+  }
 
   // ── Partidos seguidos sin doble bogey (todos los contextos) ──────────
   // Doble bogey = hoyo ≥5 (par 3). Una actuación con dbl>0 rompe la racha.
