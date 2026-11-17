@@ -5805,9 +5805,9 @@ function _htmlPestanasInstrucciones(){
       + 'Arranca cuando ' + UMBRAL_N1 + ' jugadores tienen hándicap. La temporada es el año natural; la primera, 2027. '
       + 'Desempate: hándicap → nº de campos distintos en esas ' + VENTANA + ' actuaciones → birdies; si persiste, se reparten los puntos de los puestos ocupados.' },
     { t: tabTxt('liga'), d:
-      'Los ' + diaPlural(SL_DIA) + ', en campo variable y sin obligación de venir. No cuenta el hándicap: puntúa el <b>puesto del día</b>, '
+      'Los ' + diaPlural(SL_DIA) + ', en campo variable. Puntúa el <b>puesto del día</b>, '
       + SL_PUNTOS.join('-') + ' del 1º al ' + SL_PUNTOS.length + 'º y ' + SL_PUNTOS_RESTO + ' punto a todos los demás. Se suman todas las jornadas, sin descartes. '
-      + 'En un empate se reparten los puntos de los puestos ocupados. La temporada es el año natural (enero a diciembre). Mínimo 4 jugadores; con menos, esa quedada es Tour.' + ctxTxt('sl') },
+      + 'En un empate se reparten los puntos de los puestos ocupados. La temporada es el año natural (enero a diciembre). Mínimo 4 jugadores; con menos, la jornada se suspende.' + ctxTxt('sl') },
     { t: tabTxt('tour'), d:
       'Torneo oficial del club: ' + ((typeof CAL_MENSUALES !== 'undefined' && CAL_MENSUALES.find(e => e.src === 'sptr')) ? CAL_MENSUALES.find(e => e.src === 'sptr').n : 10) + ' pruebas en otros tantos campos distintos. Puntúa el <b>puesto del día</b> con el mismo baremo que la Liga ('
       + SL_PUNTOS.join('-') + ' y ' + SL_PUNTOS_RESTO + ' punto a todos los demás) y gana quien más suma. En un empate se reparten los puntos de los puestos ocupados. Mínimo 3 jugadores.' + ctxTxt('sptr') },
