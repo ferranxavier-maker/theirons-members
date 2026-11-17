@@ -5810,7 +5810,7 @@ function _htmlPestanasInstrucciones(){
       + 'En un empate se reparten los puntos de los puestos ocupados. La temporada es el año natural (enero a diciembre). Mínimo 4 jugadores; con menos, la jornada se suspende.' + ctxTxt('sl') },
     { t: tabTxt('tour'), d:
       'Torneo oficial del club: ' + ((typeof CAL_MENSUALES !== 'undefined' && CAL_MENSUALES.find(e => e.src === 'sptr')) ? CAL_MENSUALES.find(e => e.src === 'sptr').n : 10) + ' pruebas en otros tantos campos distintos. Puntúa el <b>puesto del día</b> con el mismo baremo que la Liga ('
-      + SL_PUNTOS.join('-') + ' y ' + SL_PUNTOS_RESTO + ' punto a todos los demás) y gana quien más suma. En un empate se reparten los puntos de los puestos ocupados. Mínimo 3 jugadores.' + ctxTxt('sptr') },
+      + SL_PUNTOS.join('-') + ' y ' + SL_PUNTOS_RESTO + ' punto a todos los demás) y gana quien más suma. En un empate se reparten los puntos de los puestos ocupados. Mínimo 4 jugadores; con menos, la jornada se suspende.' + ctxTxt('sptr') },
     { t: tabTxt('matchplay'), d:
       'Cuadro de eliminatorias entre los mejores del club (8, 16 o 32). Duelos uno contra uno, hoyo a hoyo: gana el hoyo quien hace menos golpes y gana el partido quien se lleva más hoyos. Quien pierde, fuera; solo queda uno.' },
     { t: tabTxt('copa'), d:
@@ -9763,7 +9763,7 @@ function renderRanking(el){
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// TOUR — torneo oficial del club, por puntos (mínimo 3 jugadores)
+// TOUR — torneo oficial del club, por puntos (mínimo 4 jugadores)
 // ═══════════════════════════════════════════════════════════════════════
 // Una prueba por campo, con src 'sptr'. Multi-campo: el campo lo define
 // cada jornada (jr.campo).
