@@ -7437,14 +7437,23 @@ function renderMiscelania(el){
   // Castas por umbral fijo. Un jugador cambia de casta automáticamente al
   // cruzar el umbral, sin tocar código.
   const CASTAS = [
-    { id:'c100', min:100, max:Infinity, icon:'🏆', titulo:'El club de los 100',
-      sub:'100 partidos o más', bg:'#fffbeb', border:'#fde68a', color:'#a16207',
+    { id:'c1000', min:1000, max:Infinity, icon:'👑', titulo:'Leyendas',
+      sub:'+1000', bg:'#fffbeb', border:'#fcd34d', color:'#b45309',
+      vacio:'Nadie ha llegado todavía. El Olimpo espera.' },
+    { id:'c500',  min:500,  max:999,      icon:'🎖️', titulo:'Viejas glorias',
+      sub:'+500', bg:'#fdf6ee', border:'#e7cfb4', color:'#8a6a4e',
+      vacio:'Sin viejas glorias de momento.' },
+    { id:'c250',  min:250,  max:499,      icon:'⚔️', titulo:'Guerreros',
+      sub:'+250', bg:'#fdf2f2', border:'#f5c2c2', color:'#8b1d1d',
+      vacio:'Aún no hay guerreros en el campo de batalla.' },
+    { id:'c100',  min:100,  max:249,      icon:'🏆', titulo:'Veteranos',
+      sub:'+100', bg:'#fffbeb', border:'#fde68a', color:'#a16207',
       vacio:'Nadie ha entrado todavía. La puerta sigue cerrada.' },
-    { id:'c50',  min:50,  max:99,       icon:'🥈', titulo:'El club de los 50',
-      sub:'de 50 a 99 partidos', bg:'#f0f9ff', border:'#bae6fd', color:'#0369a1',
+    { id:'c50',   min:50,   max:99,       icon:'🥈', titulo:'Novatos',
+      sub:'+50', bg:'#f0f9ff', border:'#bae6fd', color:'#0369a1',
       vacio:'Sala vacía de momento.' },
-    { id:'morr', min:0,   max:49,       icon:'🗑️', titulo:'Morralla',
-      sub:'menos de 50 partidos', bg:'#fafafa', border:'#e5e5e5', color:'#737373',
+    { id:'morr',  min:0,    max:49,       icon:'🗑️', titulo:'Morralla',
+      sub:'−50', bg:'#fafafa', border:'#e5e5e5', color:'#737373',
       vacio:'Ni morralla queda. Milagro.' }
   ];
 
