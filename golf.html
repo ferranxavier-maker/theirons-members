@@ -1000,7 +1000,8 @@ function fuenteGolf(tipo){
   const acts = vueltasJugadorTodas(tipo).map(v => {
     let bir=0, par=0, bog=0, dbl=0;
     v.golpes.forEach((g,i) => { const d = g - v.pars[i]; if(d<=-1) bir++; else if(d===0) par++; else if(d===1) bog++; else dbl++; });
-    return {...v, jugador:v.apodo, fechaD:_isoDate(v.fecha), bir, par, bog, dbl};
+    const gir = v.G ? v.G.nGir : null, tp = v.G ? v.G.n3p : null;
+    return {...v, jugador:v.apodo, fechaD:_isoDate(v.fecha), bir, par, bog, dbl, gir, tp};
   }).sort((a,b) => a.fechaD - b.fechaD);
   const F = {
     tipo, exec, acts,
@@ -1261,29 +1262,39 @@ const REND_CAT_GOLF = [
   {k:'Bogey',   col:'#c2410c', bg:'#fff7ed', test:(g,d)=>g!==1 && d===1},
   {k:'Doble+',  col:'#b91c1b', bg:'#fef2f2', test:(g,d)=>g!==1 && d>=2},
 ];
+// Columnas extra de Rendimiento (GIR y tripateos); mismos colores que los puntos de la tarjeta
+const REND_EXTRA_GOLF = [
+  {k:'gir', n:'GIR %', n_:'nG', col:'#16a34a', bg:'#f0fdf4'},
+  {k:'tp',  n:'3P %',  n_:'nT', col:'#dc2626', bg:'#fef2f2'},
+];
 function _rendContarGolf(acts){
-  const c = REND_CAT_GOLF.map(() => 0); let tot = 0;
+  const c = REND_CAT_GOLF.map(() => 0); let tot = 0, hG = 0, nG = 0, nT = 0;
   acts.forEach(a => a.golpes.forEach((g,i) => { const k = REND_CAT_GOLF.findIndex(x => x.test(g, g - a.pars[i])); if(k>=0){ c[k]++; tot++; } }));
-  return {c, tot};
+  // GIR y tripateos: solo las vueltas que traen GIR apuntados
+  acts.forEach(a => { if(a.gir==null) return; hG += a.golpes.length; nG += a.gir; nT += a.tp; });
+  return {c, tot, hG, nG, nT};
 }
 function _rendTablaGolf(tbl, F){
   const {datos, hcps, titulo, sub, hcpLbl} = tbl._rend; const sort = tbl._rendSort;
   const filas = _JUGADORES().map(j => { const d = datos[j]; if(!d || !d.tot) return null;
-    const pct = d.c.map(x => x/d.tot*100); return {j, pct, c:d.c, ofensivo:pct[0]+pct[1], hcp: typeof hcps[j]==='number' ? hcps[j] : null}; }).filter(Boolean);
-  const val = r => sort.col==='ofensivo' ? r.ofensivo : sort.col==='hcp' ? r.hcp : r.pct[sort.col];
+    const pct = d.c.map(x => x/d.tot*100); return {j, pct, c:d.c, ofensivo:pct[0]+pct[1], hcp: typeof hcps[j]==='number' ? hcps[j] : null,
+      gir: d.hG ? d.nG/d.hG*100 : null, nG:d.nG, tp: d.nG ? d.nT/d.nG*100 : null, nT:d.nT}; }).filter(Boolean);
+  const val = r => sort.col==='ofensivo' ? r.ofensivo : sort.col==='hcp' ? r.hcp : sort.col==='gir' ? r.gir : sort.col==='tp' ? r.tp : r.pct[sort.col];
   filas.sort((a,b) => { const va = val(a), vb = val(b); if(va==null && vb==null) return 0; if(va==null) return 1; if(vb==null) return -1;
     if(sort.col==='hcp') return sort.dir==='desc' ? va-vb : vb-va; return sort.dir==='desc' ? vb-va : va-vb; });
   const flecha = k => sort.col!==k ? '' : (sort.dir==='desc' ? ' ▾' : ' ▴');
   const header = `<tr style="background:#fafafa"><th style="padding:6px 8px;text-align:left;font-size:11px;color:#6b7280;font-weight:600" class="fx0">Jugador</th>`
     + `<th data-rs="hcp" style="padding:6px 8px;text-align:center;font-size:11px;color:#0f766e;font-weight:600;cursor:pointer;user-select:none">${hcpLbl}${flecha('hcp')}</th>`
-    + REND_CAT_GOLF.map((c,ci) => `<th data-rs="${ci}" style="padding:6px 6px;text-align:center;font-size:11px;color:${c.col};font-weight:600;cursor:pointer;user-select:none;${sort.col===ci?'background:'+c.bg:''}">${c.k}${flecha(ci)}</th>`).join('') + '</tr>';
+    + REND_CAT_GOLF.map((c,ci) => `<th data-rs="${ci}" style="padding:6px 6px;text-align:center;font-size:11px;color:${c.col};font-weight:600;cursor:pointer;user-select:none;${sort.col===ci?'background:'+c.bg:''}">${c.k}${flecha(ci)}</th>`).join('')
+    + REND_EXTRA_GOLF.map(x => `<th data-rs="${x.k}" style="padding:6px 6px;text-align:center;font-size:11px;color:${x.col};font-weight:600;cursor:pointer;user-select:none;${sort.col===x.k?'background:'+x.bg:''}">${x.n}${flecha(x.k)}</th>`).join('') + '</tr>';
   const body = filas.map(r => `<tr style="border-bottom:1px solid #f0f0f0"><td class="fx0" style="padding:5px 8px"><div style="display:inline-flex;align-items:center;gap:6px"><span style="width:20px;height:20px;border-radius:4px;background:${_colorJ(r.j)};display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#333">${r.j.slice(0,3)}</span><span style="font-size:12px;font-weight:500">${r.j}</span></div></td>`
     + `<td style="padding:5px 8px;text-align:center;font-size:12px;font-weight:700;color:${r.hcp==null?'#cbd5e1':'#0f766e'};background:#f0fdfa">${F.fmtHcp(r.hcp)}</td>`
-    + r.pct.map((p,ci) => `<td style="padding:5px 6px;text-align:center;font-size:12px;background:${REND_CAT_GOLF[ci].bg}"><div style="display:flex;align-items:baseline;justify-content:center;gap:5px"><span style="font-weight:700;color:${REND_CAT_GOLF[ci].col}">${p.toFixed(1)}%</span><span style="font-size:11px;color:#9ca3af;font-weight:400">${r.c[ci]}</span></div></td>`).join('') + '</tr>').join('');
+    + r.pct.map((p,ci) => `<td style="padding:5px 6px;text-align:center;font-size:12px;background:${REND_CAT_GOLF[ci].bg}"><div style="display:flex;align-items:baseline;justify-content:center;gap:5px"><span style="font-weight:700;color:${REND_CAT_GOLF[ci].col}">${p.toFixed(1)}%</span><span style="font-size:11px;color:#9ca3af;font-weight:400">${r.c[ci]}</span></div></td>`).join('')
+    + REND_EXTRA_GOLF.map(x => `<td style="padding:5px 6px;text-align:center;font-size:12px;background:${x.bg}">${r[x.k]==null ? '<span style="color:#cbd5e1">—</span>' : `<div style="display:flex;align-items:baseline;justify-content:center;gap:5px"><span style="font-weight:700;color:${x.col}">${r[x.k].toFixed(1)}%</span><span style="font-size:11px;color:#9ca3af;font-weight:400">${r[x.n_]}</span></div>`}</td>`).join('') + '</tr>').join('');
   tbl.innerHTML = `<div style="max-width:640px"><div style="font-weight:600;font-size:13px;color:#1a1a1a;margin-bottom:2px">${titulo}</div><div style="font-size:11px;color:#9ca3af;margin-bottom:12px">${sub}</div>`
     + `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #eee;border-radius:8px;overflow:hidden"><thead>${header}</thead><tbody>${body}</tbody></table></div>`
-    + `<div style="font-size:10px;color:#cbd5e1;margin-top:10px">Sobre el par de cada hoyo: HIO = 1 golpe · Birdie = par − 1 o mejor · Par · Bogey = par + 1 · Doble+ = par + 2 o más. Toca una columna para ordenar.</div></div>`;
-  tbl.querySelectorAll('[data-rs]').forEach(t => t.addEventListener('click', () => { const k = t.dataset.rs==='hcp' ? 'hcp' : +t.dataset.rs;
+    + `<div style="font-size:10px;color:#cbd5e1;margin-top:10px">Sobre el par de cada hoyo: HIO = 1 golpe · Birdie = par − 1 o mejor · Par · Bogey = par + 1 · Doble+ = par + 2 o más · GIR % = greens en regulación sobre hoyos jugados · 3P % = tripateos sobre GIR (solo vueltas con GIR apuntados). Toca una columna para ordenar.</div></div>`;
+  tbl.querySelectorAll('[data-rs]').forEach(t => t.addEventListener('click', () => { const k = ['hcp','gir','tp'].includes(t.dataset.rs) ? t.dataset.rs : +t.dataset.rs;
     if(sort.col===k) sort.dir = sort.dir==='desc' ? 'asc' : 'desc'; else { sort.col = k; sort.dir = 'desc'; } _rendTablaGolf(tbl, F); }));
 }
 function renderRendimientoGolf(el, F){
@@ -1328,6 +1339,8 @@ function renderStatsPPGolf(el, F){
   const ratioHoyo = totalBirdies > 0 ? (totalHoyos/totalBirdies).toFixed(1) : '—';
   const pctBajo = totalPartidos > 0 ? (totalBajopar/totalPartidos*100).toFixed(1) : '0.0';
   const totalJornadas = new Set(ACTSx.map(a => a.fecha)).size;
+  const conGir = ACTSx.filter(a => a.gir != null);
+  const hoyosGir = conGir.reduce((s,a) => s + a.golpes.length, 0), totalGir = conGir.reduce((s,a) => s + a.gir, 0), totalTp = conGir.reduce((s,a) => s + a.tp, 0);
   const desde = totalPartidos ? _fF(ACTSx[0].fechaD) : '—';
   const hio = []; ACTSx.forEach(a => a.golpes.forEach((g,i) => { if(g===1) hio.push({jugador:a.jugador, campo:a.campo, fecha:a.fechaD, hoyo:i+1}); }));
   const subHIO = !hio.length ? 'ninguno aún ⛳' : hio.length===1 ? hio[0].jugador+' · '+hio[0].campo+' H'+hio[0].hoyo : [...new Set(hio.map(d => d.jugador))].join(', ');
@@ -1340,6 +1353,8 @@ function renderStatsPPGolf(el, F){
     + kpi('#f0fdf4','#bbf7d0','Rondas bajo par',totalBajopar,'#65d000',pctBajo+'% de las rondas')
     + kpi('#fefce8','#fde68a','Total birdies',totalBirdies,'#854d0e','1 birdie cada '+ratioHoyo+' hoyos')
     + `<div${hio.length?` data-hioopen="1"`:''} style="background:#fff7ed;border-radius:12px;padding:14px 16px;border:1px solid #fed7aa${hio.length?';cursor:pointer':''}"><div style="font-size:11px;color:#555;margin-bottom:4px">Holes in one</div><div style="font-size:32px;font-weight:700;color:#ea580c;line-height:1">${hio.length}</div><div style="font-size:10px;color:#aaa;margin-top:4px">${subHIO}${hio.length?' · ver detalle':''}</div></div>`
+    + kpi('#f0fdf4','#bbf7d0','Total GIR',totalGir,'#16a34a',hoyosGir ? (totalGir/hoyosGir*100).toFixed(1).replace('.',',')+'% de los hoyos' : 'sin GIR apuntados')
+    + kpi('#fef2f2','#fecaca','Total tripateos',totalTp,'#dc2626',totalGir ? (totalTp/totalGir*100).toFixed(1).replace('.',',')+'% de los GIR' : 'sin GIR apuntados')
     + '</div>';
   h += `<div id="${popId}" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center"><div data-stop="1" style="background:#fff;border-radius:16px;padding:20px;max-width:420px;width:90%;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)"><div style="font-weight:700;font-size:14px;color:#1a1a1a;margin-bottom:14px">⛳ Holes in one</div><div style="max-height:400px;overflow-y:auto;padding-right:4px">`
     + (hio.map((d,i) => `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:${i%2===0?'#fff7ed':'#fff'};border-radius:8px;margin-bottom:4px;border:1px solid #fed7aa66"><div style="font-size:11px;color:#666;font-family:monospace;min-width:74px">${_fF(d.fecha)}</div><div style="width:22px;height:22px;border-radius:5px;background:${_colorJ(d.jugador)};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#333;flex-shrink:0">${d.jugador.slice(0,3)}</div><div style="flex:1;font-size:12px;color:#1a1a1a"><b>${d.jugador}</b> · ${d.campo} <b>H${d.hoyo}</b></div></div>`).join('') || '<div style="font-size:12px;color:#9ca3af;padding:10px 0">Ninguno aún.</div>')
@@ -1348,13 +1363,16 @@ function renderStatsPPGolf(el, F){
   _JUGADORES().forEach(p => { const g = F.actsDe(p); if(!g.length) return;
     const avg = k => (g.reduce((s,a) => s + a[k], 0)/g.length).toFixed(1);
     sd[p] = {n:g.length, avgTotal:avg('dpar'), avgBir:avg('bir'), avgPar:avg('par'), avgBog:avg('bog'), avgDbl:avg('dbl'),
-      best:Math.min(...g.map(a => a.dpar)), worst:Math.max(...g.map(a => a.dpar)), totalBir:g.reduce((s,a) => s + a.bir, 0)}; });
+      best:Math.min(...g.map(a => a.dpar)), worst:Math.max(...g.map(a => a.dpar)), totalBir:g.reduce((s,a) => s + a.bir, 0)};
+    const gG = g.filter(a => a.gir != null);
+    sd[p].avgGir = gG.length ? (gG.reduce((s,a) => s + a.gir, 0)/gG.length).toFixed(1) : '—';
+    sd[p].avgTp  = gG.length ? (gG.reduce((s,a) => s + a.tp, 0)/gG.length).toFixed(1) : '—'; });
   const sg = v => v >= 0 ? '+'+v : v;
   const sorted = _JUGADORES().filter(p => sd[p]).sort((a,b) => parseFloat(sd[a].avgTotal) - parseFloat(sd[b].avgTotal));
-  h += `<div style="font-weight:500;margin-bottom:8px;color:#555;font-size:12px">Media por jugador (partidos completados)</div><div style="overflow-x:auto"><table style="width:100%"><thead><tr><th style="text-align:left" class="fx0">Jugador</th><th>Part.</th><th>Media</th><th>Mejor</th><th>Peor</th><th>🐦med</th><th>🐦tot</th><th>✅med</th><th>❌med</th><th>❌❌med</th></tr></thead><tbody>`;
+  h += `<div style="font-weight:500;margin-bottom:8px;color:#555;font-size:12px">Media por jugador (partidos completados)</div><div style="overflow-x:auto"><table style="width:100%"><thead><tr><th style="text-align:left" class="fx0">Jugador</th><th>Part.</th><th>Media</th><th>Mejor</th><th>Peor</th><th>🐦med</th><th>🐦tot</th><th>✅med</th><th>❌med</th><th>❌❌med</th><th style="color:#16a34a">GIR med</th><th style="color:#dc2626">3P med</th></tr></thead><tbody>`;
   sorted.forEach((p,i) => { const d = sd[p], at = parseFloat(d.avgTotal);
     const mc = at < 4 ? '#15803d' : at < 7 ? '#1a1a1a' : '#b91c1c';
-    h += `<tr style="background:${i%2===0?'#fff':'#fafafa'}"><td class="fx0" style="background:${_colorJ(p)};font-weight:500;color:#333">${p}</td><td style="text-align:center">${d.n}</td><td style="text-align:center;font-weight:500;color:${mc}">${at>=0?'+'+d.avgTotal:d.avgTotal}</td><td style="text-align:center;color:#15803d">${sg(d.best)}</td><td style="text-align:center;color:#b91c1c">${sg(d.worst)}</td><td style="text-align:center">${d.avgBir}</td><td style="text-align:center">${d.totalBir}</td><td style="text-align:center">${d.avgPar}</td><td style="text-align:center">${d.avgBog}</td><td style="text-align:center">${d.avgDbl}</td></tr>`; });
+    h += `<tr style="background:${i%2===0?'#fff':'#fafafa'}"><td class="fx0" style="background:${_colorJ(p)};font-weight:500;color:#333">${p}</td><td style="text-align:center">${d.n}</td><td style="text-align:center;font-weight:500;color:${mc}">${at>=0?'+'+d.avgTotal:d.avgTotal}</td><td style="text-align:center;color:#15803d">${sg(d.best)}</td><td style="text-align:center;color:#b91c1c">${sg(d.worst)}</td><td style="text-align:center">${d.avgBir}</td><td style="text-align:center">${d.totalBir}</td><td style="text-align:center">${d.avgPar}</td><td style="text-align:center">${d.avgBog}</td><td style="text-align:center">${d.avgDbl}</td><td style="text-align:center;color:#16a34a">${d.avgGir}</td><td style="text-align:center;color:#dc2626">${d.avgTp}</td></tr>`; });
   h += '</tbody></table></div>';
   const byF = {}; ACTSx.forEach(a => { (byF[a.fecha] = byF[a.fecha] || {ts:a.fechaD.getTime(), f:_fF(a.fechaD), scores:[]}).scores.push(a.dpar); });
   h += '<div style="margin-top:24px;margin-bottom:8px;font-weight:600;font-size:13px;color:#1a1a1a">Media por jornada</div><div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Fecha</th><th>Jug.</th><th>Media</th><th>Mejor</th><th>Peor</th></tr></thead><tbody>';
