@@ -318,11 +318,12 @@ const puntoGir = (G,h) => !G||!G.gir[h] ? '' : `<span class="gir${G.tp[h]?' tp':
 const claseHoyo = d => d<=-2?'ea':d===-1?'bi':d===0?'pa':d===1?'bo':'db';
 // Celdas de tarjeta con la misma estética que las tablas de pitch & putt
 // (holeStyle / totalStyle / renderScorecard*), aplicada sobre el par de cada hoyo:
-// birdie o mejor = círculo verde · par = número normal · bogey = cuadro turquesa · doble o peor = cuadro azul marino.
+// birdie o mejor = círculo verde · par = número normal · bogey = cuadro turquesa · doble = cuadro azul marino · triple = cuadro rojo.
 function estiloHoyoPP(d){
   if(d<=-1) return {bg:'#65d000',col:'#fff',fw:700,round:true};
   if(d===0) return {bg:'#fff',col:'#333',fw:400};
   if(d===1) return {bg:'#06b6d4',col:'#fff',fw:600};
+  if(d>=3) return {bg:'#dc2626',col:'#fff',fw:700};   // triple bogey
   return {bg:'#1e3a8a',col:'#fff',fw:700};
 }
 function celdaHoyoPP(g, par, gir, tp){
