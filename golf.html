@@ -383,10 +383,50 @@ function casillasHcp(items, ventana, fmtV, tipo){
   return h + '</div></div>';
 }
 function enlazarCasillas(el){
-  el.querySelectorAll('[data-hcpficha]').forEach(c=>c.addEventListener('click',()=>{
-    FICHA=c.dataset.hcpficha; FICHA_TIPO=c.dataset.tipo; FICHA_VENT='hist';
-    showTab('equipo'); RENDER.equipo(document.getElementById('tab-equipo')); window.scrollTo(0,0);
-  }));
+  el.querySelectorAll('[data-hcpficha]').forEach(c=>c.addEventListener('click',()=>mostrarVueltasHcp(c.dataset.hcpficha, c.dataset.tipo)));
+}
+// Ventana emergente con las vueltas que forman el hándicap, igual que al pulsar
+// una casilla del Hándicap G de pitch & putt (window.__mostrarTarjetasGlobal).
+// Las más recientes arriba; en campos de 18 las que no entran en los mejores diferenciales van tachadas.
+function mostrarVueltasHcp(ap, tipo){
+  const F = fuenteGolf(tipo), exec = F.exec;
+  const r = F.hcpEn(ap, new Date());
+  if(!r.used || !r.used.length) return;
+  let ov = document.getElementById('hcpv-overlay');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'hcpv-overlay';
+    ov.setAttribute('style','display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.55);z-index:9999;align-items:flex-start;justify-content:center;padding:20px 10px;overflow-y:auto');
+    ov.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:680px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.3);margin:20px 0;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e5e7eb;background:#fafaf5">
+        <div><div id="hcpv-titulo" style="font-weight:700;font-size:14px;color:#1a1a1a"></div><div id="hcpv-meta" style="font-size:11px;color:#6b7280;margin-top:3px"></div></div>
+        <span id="hcpv-x" style="cursor:pointer;font-size:22px;line-height:1;color:#6b7280;padding:2px 8px;border-radius:4px">×</span>
+      </div><div id="hcpv-tabla" style="padding:0"></div></div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', e => { if(e.target === ov) ov.style.display = 'none'; });
+    ov.querySelector('#hcpv-x').addEventListener('click', () => { ov.style.display = 'none'; });
+  }
+  const sg = (v, dec) => { const x = +v.toFixed(dec); return x===0 ? '0' : (x>0?'+':'') + (Number.isInteger(x) ? x : x.toFixed(dec).replace('.',',')); };
+  const vent = exec ? EXEC.VENTANA : WHS.VENTANA;
+  const filas = r.used.slice().reverse().map((u,i) => `
+      <tr style="border-bottom:1px solid #f0f0f0${u.cuenta ? '' : ';opacity:.45;text-decoration:line-through'}"${u.cuenta ? '' : ' title="No entra: fuera de los mejores diferenciales de la ventana"'}>
+        <td style="padding:6px 8px;font-size:11px;color:#6b7280;text-align:center">${i+1}</td>
+        <td style="padding:6px 8px;font-size:12px;color:#374151;white-space:nowrap">${fmtFecha(u.fecha)}</td>
+        <td style="padding:6px 8px;font-size:11px;color:#6b7280">${u.campo}</td>
+        <td style="padding:6px 8px;font-size:13px;font-weight:700;color:#374151;text-align:right;font-family:'Fraunces',serif">${u.bruto}</td>
+        <td style="padding:6px 8px;font-size:13px;font-weight:700;color:${u.valor<=0?'#15803d':'#991b1b'};text-align:right;font-family:'Fraunces',serif">${exec ? sg(u.valor,0) : sg(u.valor,1)}</td>
+      </tr>`).join('');
+  const th = (t, al, col) => `<th style="padding:8px;font-size:10px;font-weight:600;color:${col||'#6b7280'};text-align:${al}">${t}</th>`;
+  document.getElementById('hcpv-titulo').textContent = `🏆 ${ap} · ${F.hcpLbl} ${r.hcp!=null ? F.fmtHcp(r.hcp) : '—'}`;
+  document.getElementById('hcpv-meta').textContent = r.hcp!=null
+    ? `${r.pie} · ${r.n} vuelta${r.n===1?'':'s'} en total`
+    : `${r.n} vuelta${r.n===1?'':'s'} · sin hándicap todavía (faltan ${(exec ? EXEC.VENTANA : WHS.TABLA_MIN) - r.n})`;
+  document.getElementById('hcpv-tabla').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-family:Inter,system-ui,sans-serif">
+      <thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">${th('#','center')}${th('FECHA','left')}${th('CAMPO','left')}${th('BRUTO','right')}${th(exec ? '+/- PAR' : 'DIFERENCIAL','right')}</tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <div style="font-size:10px;color:#9ca3af;padding:8px 12px">Últimas ${vent} vueltas como máximo; la más reciente arriba.</div>`;
+  ov.style.display = 'flex';
 }
 function renderHandicap(el){
   const filas = EQUIPO.map(j=>{
@@ -1018,7 +1058,7 @@ function fuenteGolf(tipo){
     if(exec){
       const mis = EXEC_DATOS.vueltas.filter(v => v.apodo === ap && _isoDate(v.fecha) <= fc);
       if(!mis.length) return {hcp:null, n:0, used:[]};
-      const used = mis.slice(-EXEC.VENTANA).map(v => ({fecha:v.fecha, campo:'Executive', valor:v.dpar, cuenta:true}));
+      const used = mis.slice(-EXEC.VENTANA).map(v => ({fecha:v.fecha, campo:'Executive', valor:v.dpar, bruto:v.bruto, cuenta:true}));
       return {hcp: mis[mis.length-1].hcpDespues, n: mis.length, used, pie:'Media de las últimas '+EXEC.VENTANA+' vueltas'};
     }
     const mis = ACTS.filter(a => a.apodo === ap && a.dif != null && _isoDate(a.fecha) <= fc);
@@ -1026,7 +1066,7 @@ function fuenteGolf(tipo){
     const ult = mis.slice(-WHS.VENTANA);
     const t = WHS.TABLA[ult.length];
     const mejores = t ? ult.map((a,i)=>({i, d:a.dif})).sort((x,y)=>x.d-y.d).slice(0, t[0]).map(x=>x.i) : [];
-    const used = ult.map((a,i) => ({fecha:a.fecha, campo:a.campo.corto, valor:a.dif, cuenta:mejores.includes(i)}));
+    const used = ult.map((a,i) => ({fecha:a.fecha, campo:a.campo.corto, valor:a.dif, bruto:a.bruto, cuenta:mejores.includes(i)}));
     const pie = t ? 'Media de los '+t[0]+' mejores diferenciales de '+ult.length+(t[1]?' con ajuste '+(t[1]>0?'+':'')+t[1]:'') : '';
     return {hcp: mis[mis.length-1].hiDespues, n: mis.length, used, pie};
   };
