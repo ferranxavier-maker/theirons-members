@@ -7429,10 +7429,24 @@ function renderMiscelania(el){
   // Cuenta TODAS las actuaciones de cada jugador en cualquier contexto
   // (IC, ENT, Liga, Tour, Copa), todos los campos, con abandonos,
   // sin filtro de fecha. Recuento bruto de participación.
-  const partidosData = PLAYERS.map(jugador => ({
-    jugador,
-    n: _recopilarActuacionesGlobal(jugador).filter(a => a.fecha instanceof Date).length
-  })).sort((a,b) => b.n - a.n || a.jugador.localeCompare(b.jugador));
+  // Convocados = jornadas publicadas (jornada general: días que el club ha
+  // quedado a jugar) desde el alta del jugador en EQUIPO, inclusive. Quien
+  // entró más tarde no carga con las jornadas de antes de llegar.
+  const _diasJG = Object.keys(jornadasGenerales().num);
+  const _convocados = jugador => {
+    const e = EQUIPO.find(x => x.apodo === jugador);
+    let desde = '';
+    if(e && e.alta){
+      const [d,m,y] = String(e.alta).split('/');
+      desde = y + '-' + m.padStart(2,'0') + '-' + d.padStart(2,'0');
+    }
+    return _diasJG.filter(k => k >= desde).length;
+  };
+  const partidosData = PLAYERS.map(jugador => {
+    const n = _recopilarActuacionesGlobal(jugador).filter(a => a.fecha instanceof Date).length;
+    const conv = _convocados(jugador);
+    return { jugador, n, conv, pct: conv ? Math.round(n / conv * 100) : null };
+  }).sort((a,b) => b.n - a.n || a.jugador.localeCompare(b.jugador));
 
   // Castas por umbral fijo. Un jugador cambia de casta automáticamente al
   // cruzar el umbral, sin tocar código.
@@ -7475,7 +7489,8 @@ function renderMiscelania(el){
         h += '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#fff;border-radius:7px;margin-bottom:4px;border:1px solid #eee">'
           +'<div style="width:26px;height:26px;border-radius:5px;background:'+(COLORS[p.jugador]||'#eee')+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#333;flex-shrink:0">'+p.jugador.slice(0,3)+'</div>'
           +'<div style="flex:1;font-weight:500;font-size:12px">'+p.jugador+'</div>'
-          +'<div style="font-weight:700;font-size:16px;color:'+c.color+';min-width:28px;text-align:right">'+p.n+'</div>'
+          +'<div style="font-weight:700;font-size:16px;color:'+c.color+';min-width:28px;text-align:right;white-space:nowrap">'+p.n
+          +(p.pct !== null ? ' <span style="font-weight:400;font-size:10px;color:#aaa" title="'+p.n+' de '+p.conv+' jornadas convocadas">('+p.pct+'%)</span>' : '')+'</div>'
           +'</div>';
       });
     }
@@ -7986,6 +8001,10 @@ function renderMiscelania(el){
 
 // Récord «Birdies en N partidos seguidos»: tamaño de la ventana.
 const VENTANA_BIRDIES = 10;
+// Récords con «(n)» (veces que se ha firmado): solo a partir de este valor.
+// Más birdies en un partido: desde 4 birdies. Birdies consecutivos: desde 3 seguidos.
+const RECORD_MIN_VECES_MAS_BIRDIES   = 4;
+const RECORD_MIN_VECES_BIRDIES_CONSEC = 3;
 function renderRecordsGlobal(el){
   const FECHA_INICIO_GLOBAL_CALC = new Date(2026, 0, 1);
   // Campos excluidos de TODAS las secciones de récords globales (distorsionan).
@@ -8249,8 +8268,10 @@ function renderRecordsGlobal(el){
   }
   // Fila de récord: con una sola vez, fecha · campo · contexto; si lo ha
   // igualado varias veces, «(n)» pulsable que despliega todas debajo.
-  function _filaRecord(p, i){
-    const multi = p.veces && p.veces.length > 1;
+  // `minBest`: el «(n)» solo sale si el récord llega a ese valor; por debajo
+  // se pinta la última vez, como si fuera una sola.
+  function _filaRecord(p, i, minBest){
+    const multi = p.veces && p.veces.length > 1 && p.best >= (minBest || 0);
     const info = p.fecha ? fFecha(p.fecha)+' · '+p.campo+' · '+p.ctx : '—';
     const der = multi
       ? '<span class="bchip" data-info="'+p.veces.join('&#10;')+'" onclick="_batidoToggle(this)" style="font-size:11px;font-weight:600;color:#15803d;margin-right:4px;cursor:pointer;text-decoration:underline">('+p.veces.length+')</span>'
@@ -8277,7 +8298,7 @@ function renderRecordsGlobal(el){
   }).sort((a,b) => b.best - a.best || a.jugador.localeCompare(b.jugador));
   h += '<div style="margin-bottom:18px">';
   h += '<div style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:12px;margin-bottom:8px"><span style="font-size:14px;line-height:1">🐦</span> Más birdies en un partido <span style="font-weight:400;color:#aaa;font-size:10px;margin-left:4px">· todos los contextos</span></div>';
-  masBirdiesData.forEach((p,i) => { h += _filaRecord(p, i); });
+  masBirdiesData.forEach((p,i) => { h += _filaRecord(p, i, RECORD_MIN_VECES_MAS_BIRDIES); });
   h += '</div>'; // cierra sección Más birdies en un partido
 
   // ── 2) Birdies consecutivos (🐦🐦) — DENTRO de un mismo partido ──────
@@ -8289,7 +8310,7 @@ function renderRecordsGlobal(el){
     .sort((a,b) => b.best - a.best || a.jugador.localeCompare(b.jugador));
   h += '<div style="margin-bottom:18px">';
   h += '<div style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:12px;margin-bottom:8px"><span style="font-size:14px;line-height:1">🐦🐦</span> Birdies consecutivos <span style="font-weight:400;color:#aaa;font-size:10px;margin-left:4px">· mismo partido · todos los contextos</span></div>';
-  birdiesConsecData.forEach((p,i) => { h += _filaRecord(p, i); });
+  birdiesConsecData.forEach((p,i) => { h += _filaRecord(p, i, RECORD_MIN_VECES_BIRDIES_CONSEC); });
   h += '</div>'; // cierra sección Birdies consecutivos
   }
 
@@ -8335,7 +8356,7 @@ function renderRecordsGlobal(el){
   }).filter(Boolean)
     .sort((a,b) => b.best - a.best || a.jugador.localeCompare(b.jugador));
   h += '<div style="margin-bottom:18px">';
-  h += '<div style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:12px;margin-bottom:8px"><span style="font-size:14px;line-height:1">🐦🔟</span> Birdies en '+VENTANA_BIRDIES+' partidos seguidos <span style="font-weight:400;color:#aaa;font-size:10px;margin-left:4px">· todos los contextos · por fecha · abandonos incluidos</span></div>';
+  h += '<div style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:12px;margin-bottom:8px"><span style="font-size:14px;line-height:1">🐦🔟</span> Más birdies en '+VENTANA_BIRDIES+' partidos seguidos <span style="font-weight:400;color:#aaa;font-size:10px;margin-left:4px">· todos los contextos · por fecha · abandonos incluidos</span></div>';
   if(!ventanaBirdiesData.length){
     h += '<div style="font-size:11px;color:#aaa;padding:8px">Nadie llega aún a '+VENTANA_BIRDIES+' partidos.</div>';
   } else {
@@ -8800,7 +8821,7 @@ function _rendDibujarTabla(el){
     if(!d || d.tot===0) return null;
     const pct = d.c.map(x => x/d.tot*100);
     const hcp = hcps ? (typeof hcps[j] === 'number' ? hcps[j] : null) : null;
-    return { j, tot:d.tot, pct, c:d.c, ofensivo: pct[0]+pct[1], hcp };
+    return { j, tot:d.tot, n:d.n, pct, c:d.c, ofensivo: pct[0]+pct[1], hcp };
   }).filter(Boolean);
 
   // Clave de orden: 'ofensivo' (default), 'hcp', o 0..4 (categoría).
@@ -8837,6 +8858,7 @@ function _rendDibujarTabla(el){
 
   const header = `<tr style="background:#fafafa">
     <th style="padding:6px 8px;text-align:left;font-size:11px;color:#6b7280;font-weight:600">Jugador</th>
+    <th style="padding:6px 8px;text-align:center;font-size:11px;color:#6b7280;font-weight:600">Part.</th>
     ${hcps ? `<th onclick="_rendSort('${el.id}','hcp')" style="padding:6px 8px;text-align:center;font-size:11px;color:#0f766e;font-weight:600;cursor:pointer;user-select:none">${el._rendHcpLbl}${sort.col==='hcp' ? (sort.dir==='desc'?' ▾':' ▴') : ''}</th>` : ''}
     ${CAT.map((c,ci)=>`<th onclick="_rendSort('${elId}',${ci})" style="padding:6px 6px;text-align:center;font-size:11px;color:${c.col};font-weight:600;cursor:pointer;user-select:none;${sort.col===ci?'background:'+c.bg:''}">${c.k}${flecha(ci)}</th>`).join('')}
   </tr>`;
@@ -8854,6 +8876,7 @@ function _rendDibujarTabla(el){
         <span style="width:20px;height:20px;border-radius:4px;background:${COLORS[r.j]||'#eee'};display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#333">${r.j.slice(0,3)}</span>
         <span style="font-size:12px;font-weight:500">${r.j}</span>
       </div></td>
+      <td style="padding:5px 8px;text-align:center;font-size:12px">${typeof r.n === 'number' ? r.n : '—'}</td>
       ${hcps ? `<td style="padding:5px 8px;text-align:center;font-size:12px;font-weight:700;color:${r.hcp===null?'#cbd5e1':'#0f766e'};background:#f0fdfa">${fmtHcpRend(r.hcp)}</td>` : ''}
       ${cells}
     </tr>`;
@@ -8995,7 +9018,7 @@ function renderRendimientoGlobal(el){
     const filtrado = !!(campoKey || ctxKey || temp);
     const ctxLbl = ctxKey ? CTX_INFO[ctxKey].label : '';
     const datos = {}, hcps = {};
-    REND_JUGADORES.forEach(j => { datos[j] = { c:[0,0,0,0,0], tot:0 }; hcps[j] = null; });
+    REND_JUGADORES.forEach(j => { datos[j] = { c:[0,0,0,0,0], tot:0, n:0 }; hcps[j] = null; });
     REND_JUGADORES.forEach(j => {
       const acts = (typeof _recopilarActuacionesGlobal==='function' ? _recopilarActuacionesGlobal(j) : []) || [];
       const _ts = (a) => (a.fecha instanceof Date ? a.fecha : new Date(a.fecha)).getTime();
@@ -9003,6 +9026,8 @@ function renderRendimientoGlobal(el){
       if(campoKey) elegibles = elegibles.filter(a => _campoKey(a) === campoKey);
       if(ctxKey)   elegibles = elegibles.filter(a => a.src === ctxKey);
       if(temp)     elegibles = elegibles.filter(a => _enTemp(a, temp));
+      // Partidos totales del jugador con los filtros puestos (referencia, no solo la ventana)
+      datos[j].n = elegibles.length;
       // Con filtro (campo, contexto y/o temporada), el jugador solo entra si ya tiene la ventana completa
       if(filtrado && elegibles.length < MIN_VUELTAS_CAMPO){ datos[j].tot = 0; return; }
       const arrays = elegibles
